@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link %}
+{% block title %}{{ subject.full_name }} — Org Chart{% endblock %}
+
+{# Renders the nested downline. Bounded by the same depth cap as the query, so a
+   cycle in the directory data cannot produce infinite recursion here either. #}
+{% macro branch(parent_id, depth) %}
+  {% if children.get(parent_id) and depth > 0 %}
+  <ul class="pos-tree">
+    {% for node in children[parent_id] %}
+    <li>
+      <a href="{{ url_for('org_chart.person', person_id=node.id) }}">{{ node.full_name }}</a>
+      <span class="pos-muted pos-small">{{ node.job_title or '' }}</span>
+      {% if children.get(node.id) %}
+        <span class="pos-badge pos-badge-neutral">{{ children[node.id] | length }}</span>
+      {% endif %}
+      {{ branch(node.id, depth - 1) }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">{{ subject.full_name }}</h1>
+    <p class="pos-page-subtitle">
+      {{ subject.job_title or 'No job title' }}
+      · {{ direct | length }} direct, {{ total_downline }} in the downline
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('people.detail', person_id=subject.id) }}">
+      Open contact
+    </a>
+    <a class="pos-btn" href="{{ url_for('org_chart.index') }}">All reports</a>
+  </div>
+</header>
+
+{% if chain %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Reporting line upward</h2>
+  <p class="pos-breadcrumb-chain">
+    {% for row in chain | reverse %}
+      <a href="{{ url_for('org_chart.person', person_id=row.id) }}">{{ row.full_name }}</a>
+      <span aria-hidden="true">›</span>
+    {% endfor %}
+    <strong>{{ subject.full_name }}</strong>
+  </p>
+</section>
+{% endif %}
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Downline</h2>
+  <form method="get" class="pos-filter-bar">
+    <div class="pos-field">
+      <label for="depth">Levels to show</label>
+      <select id="depth" name="depth" onchange="this.form.submit()">
+        {% for n in [1, 2, 3, 4, 6, 10] %}
+        <option value="{{ n }}" {% if depth == n %}selected{% endif %}>{{ n }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn">Apply</button>
+    </div>
+  </form>
+
+  {% if children.get(subject.id) %}
+    {{ branch(subject.id, depth) }}
+  {% else %}
+    {% with title='Nobody reports to ' + subject.full_name,
+            body='Reporting lines come from the directory Manager Email field, resolved to a person. If you expected reports here, run "Resolve manager links" on the Org Chart page.',
+            action_url=url_for('org_chart.index'), action_label='Org chart overview' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+</section>
+{% endblock %}

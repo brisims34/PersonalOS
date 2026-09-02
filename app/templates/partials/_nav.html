@@ -1,0 +1,50 @@
+{# Sidebar. Groups and members come from module_registry — a module that is off
+   is absent here and 404s on its routes (CLAUDE.md rule 14). #}
+<aside class="pos-sidebar" aria-label="Main navigation">
+
+  <div class="pos-brand">
+    <a href="/" class="pos-brand-link">
+      <span class="pos-brand-mark" aria-hidden="true">P</span>
+      <span class="pos-brand-text">{{ app_name }}</span>
+    </a>
+  </div>
+
+  <nav class="pos-nav">
+    {% for group_name, modules in nav_groups %}
+    <div class="pos-nav-group">
+      <h2 class="pos-nav-heading">{{ group_name }}</h2>
+      <ul class="pos-nav-list">
+        {% for module in modules %}
+        <li>
+          <a class="pos-nav-item {% if current_module == module.module_key %}is-active{% endif %}"
+             href="{{ module.url_prefix }}"
+             {% if current_module == module.module_key %}aria-current="page"{% endif %}
+             title="{{ module.label }}">
+            {% if has_bootstrap_icons and module.icon %}
+            <i class="bi {{ module.icon }} pos-nav-icon" aria-hidden="true"></i>
+            {% else %}
+            <span class="pos-nav-icon pos-nav-icon-text" aria-hidden="true">{{ module.label[0] }}</span>
+            {% endif %}
+            <span class="pos-nav-label">{{ module.label }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </nav>
+
+  <div class="pos-sidebar-foot">
+    {% if backup_age_hours is none %}
+      <span class="pos-chip pos-chip-warn" title="No backup has been taken yet">
+        <span class="pos-chip-dot" aria-hidden="true"></span>No backup yet
+      </span>
+    {% else %}
+      <span class="pos-chip {{ 'pos-chip-ok' if backup_age_hours < 48 else 'pos-chip-warn' }}"
+            title="Most recent database backup">
+        <span class="pos-chip-dot" aria-hidden="true"></span>
+        Backup {{ backup_age_hours | round(0) | int }}h ago
+      </span>
+    {% endif %}
+  </div>
+</aside>

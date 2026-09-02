@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit task' if task else 'New task' }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">{{ 'Edit task' if task else 'New task' }}</h1>
+    {% if project and not task %}
+    <p class="pos-page-subtitle">
+      Project, workstream and charge code are pre-filled from
+      <strong>{{ project.name }}</strong> — the app does not re-ask what it already knows.
+    </p>
+    {% endif %}
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('tasks.save') }}">
+  {% if task %}<input type="hidden" name="task_id" value="{{ task.id }}">{% endif %}
+
+  <section class="pos-panel">
+    <div class="pos-field pos-mb-3">
+      <label for="title">Title <span aria-hidden="true">*</span></label>
+      <input type="text" id="title" name="title" required size="60" autofocus
+             value="{{ task.title if task else '' }}">
+    </div>
+    <div class="pos-field pos-mb-3">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" size="80"
+             value="{{ task.description if task else '' }}">
+    </div>
+
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="task_type">Type</label>
+        <select id="task_type" name="task_type">
+          {% for option in task_types %}
+          <option value="{{ option.value }}" {% if task and task.task_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="status">Status</label>
+        <select id="status" name="status">
+          {% for value in ['open','in_progress','blocked','completed','cancelled'] %}
+          <option value="{{ value }}" {% if task and task.status == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="priority">Priority</label>
+        <select id="priority" name="priority">
+          {% for value in ['high','medium','low'] %}
+          <option value="{{ value }}" {% if task and task.priority == value %}selected{% elif not task and value == 'medium' %}selected{% endif %}>{{ value | title }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="start_date">Start</label>
+        <input type="date" id="start_date" name="start_date" value="{{ task.start_date if task else '' }}"></div>
+      <div class="pos-field"><label for="due_date">Due</label>
+        <input type="date" id="due_date" name="due_date" value="{{ task.due_date if task else '' }}"></div>
+      <div class="pos-field"><label for="estimate_hours">Estimate (hours)</label>
+        <input type="number" step="0.25" min="0" id="estimate_hours" name="estimate_hours"
+               value="{{ task.estimate_hours if task and task.estimate_hours else '' }}"></div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Where it belongs</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="project_id">Project</label>
+        <select id="project_id" name="project_id">
+          <option value="">—</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" {% if (task and task.project_id == p.id) or (project and project.id == p.id) %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="workstream_id">Workstream</label>
+        <select id="workstream_id" name="workstream_id">
+          <option value="">—</option>
+          {% for w in workstreams %}
+          <option value="{{ w.id }}" {% if workstream_id == w.id %}selected{% endif %}>{{ w.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="charge_code_id">Charge code</label>
+        <select id="charge_code_id" name="charge_code_id">
+          <option value="">—</option>
+          {% for c in codes %}
+          <option value="{{ c.id }}" {% if default_charge_code_id == c.id %}selected{% endif %}>{{ c.code }} — {{ c.name }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="assignee_person_id">Assignee</label>
+        <select id="assignee_person_id" name="assignee_person_id">
+          <option value="">—</option>
+          {% for p in people %}
+          <option value="{{ p.id }}" {% if task and task.assignee_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <p class="pos-muted pos-small">
+      Choosing a charge code fills in its project and workstream automatically —
+      the code is what time is actually booked against.
+    </p>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>
+      {{ 'Save changes' if task else 'Create task' }}
+    </button>
+    <a class="pos-btn" href="{{ url_for('tasks.detail', task_id=task.id) if task else url_for('tasks.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

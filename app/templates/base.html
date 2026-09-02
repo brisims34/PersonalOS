@@ -1,0 +1,47 @@
+{#
+  The application shell. Every page extends this or _object_page.html.
+
+  The theme is written into the html element server-side rather than applied by
+  a script, so there is no flash of the wrong theme and no inline script for the
+  content security policy to have to allow.
+#}<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Command Center{% endblock %} · {{ app_name }}</title>
+  {% if has_bootstrap %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+  {% endif %}
+  {% if has_bootstrap_icons %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.css') }}">
+  {% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/personalos.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% if sidebar_collapsed %}pos-rail{% endif %}" data-module="{{ current_module }}">
+
+<a class="pos-skip-link" href="#pos-main">Skip to content</a>
+
+<div class="pos-shell">
+  {% include "partials/_nav.html" %}
+
+  <div class="pos-column">
+    {% include "partials/_topbar.html" %}
+    {% include "partials/_flash.html" %}
+
+    <main id="pos-main" class="pos-content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{% include "partials/_palette.html" %}
+{% include "partials/_hotkeys.html" %}
+
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/palette.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/tables.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

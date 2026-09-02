@@ -1,0 +1,77 @@
+# PersonalOS — data lives only on the Windows side, never in git
+
+# Ignore the contents, keep the folder. `app/data/` on its own would stop git
+# descending into the directory at all, so the negation below would never fire.
+app/data/*
+!app/data/.gitkeep
+
+# Explicitly: the database, backups, secrets, models and inbox
+*.db
+*.db-wal
+*.db-shm
+app/data/personalos.db
+app/data/backups/
+app/data/exports/
+app/data/inbox/
+app/data/models/
+app/data/secrets.json
+
+# Notes vault and template library contents are user data.
+# The folders are tracked; what you put in them is not.
+projects/*
+!projects/.gitkeep
+template_library/*
+!template_library/.gitkeep
+!template_library/_shared/
+!template_library/_shared/**
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Windows / editor cruft
+Thumbs.db
+desktop.ini
+*:Zone.Identifier
+*:sec.endpointdlp
+.vscode
+.idea
+
+# Node artefacts from the scaffold that this project does not use
+node_modules/
+package.json
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bunfig.toml
+.npmrc
+.yarnrc
+.yarnrc.yml
+
+# Local environment
+.env
+.env.*
+!.env.example
+.gitmodules
+
+# Sandbox masks. The WSL development container replaces these paths with
+# character devices so tooling cannot read them. They are not project files and
+# git cannot store them anyway; listing them keeps `git status` legible.
+.bash_profile
+.bashrc
+.gitconfig
+.mcp.json
+.profile
+.ripgreprc
+.zprofile
+.zshrc
+/.github
+/mnt
+/scripts
+
+# Static UI preview, generated on demand. Not part of the application.
+preview/

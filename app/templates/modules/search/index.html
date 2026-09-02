@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Search</h1>
+    <p class="pos-page-subtitle">
+      Full text across {{ stats.notes | num }} note{{ 's' if stats.notes != 1 }},
+      plus records. Semantic search joins these results at Phase 21 rather than
+      replacing them.
+    </p>
+  </div>
+</header>
+
+<form class="pos-filter-bar" method="get" role="search">
+  <div class="pos-field">
+    <label for="q">Search everything</label>
+    <input type="search" id="q" name="q" value="{{ query }}" size="48" autofocus
+           placeholder="cutover  ·  &quot;due diligence&quot;  ·  migration NOT draft">
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn pos-btn-primary">Search</button>
+  </div>
+</form>
+
+{% if query %}
+  {% set record_total = records.values() | map('length') | sum %}
+  <p class="pos-result-count" aria-live="polite">
+    {{ notes | length }} note{{ 's' if notes | length != 1 }} ·
+    {{ record_total }} record{{ 's' if record_total != 1 }}
+  </p>
+
+  <div class="pos-grid-2">
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Notes</h2>
+      {% if notes %}
+      <ul class="pos-search-results">
+        {% for row in notes %}
+        <li>
+          <a href="{{ url_for('notes.detail', note_id=row.id) }}">{{ row.title }}</a>
+          <span class="pos-badge pos-badge-neutral">{{ row.root_label }}</span>
+          <div class="pos-muted pos-small"><code>{{ row.rel_path }}</code></div>
+          {# snippet() output contains only <mark> from our own format string. #}
+          <div class="pos-snippet">{{ row.snippet }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="pos-muted">
+        Nothing in the vault matches. FTS5 supports <code>"exact phrase"</code>,
+        <code>AND</code>, <code>OR</code>, <code>NOT</code> and <code>prefix*</code>.
+      </p>
+      {% endif %}
+    </section>
+
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Records</h2>
+      {% for group, rows in records.items() %}
+        {% if rows %}
+        <h3 class="pos-small pos-muted">{{ group }}</h3>
+        <ul class="pos-link-list">
+          {% for row in rows %}
+          <li>
+            <a href="{{ url_patterns[group].format(row.id) }}">{{ row.label }}</a>
+            {% if row.detail %}<span class="pos-muted pos-small">{{ row.detail }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      {% endfor %}
+      {% if record_total == 0 %}
+      <p class="pos-muted">No projects, contacts, charge codes or tasks match.</p>
+      {% endif %}
+    </section>
+  </div>
+{% else %}
+  {% with title='Search the vault and every record',
+          body='Note bodies are indexed with FTS5, so phrase search and boolean operators work. Records are matched on name, code and title.' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% endif %}
+{% endblock %}

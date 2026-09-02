@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Portfolios{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Portfolios</h1>
+    <p class="pos-page-subtitle">
+      The partition that makes “everything is a project” work — and the top level
+      of the notes vault, at <code>{{ vault_root }}</code>.
+    </p>
+  </div>
+</header>
+
+<table class="pos-table">
+  <caption class="pos-visually-hidden">Portfolios</caption>
+  <thead>
+    <tr><th scope="col">Portfolio</th><th scope="col">Kind</th><th scope="col">Folder</th>
+        <th scope="col" class="pos-num">Active</th><th scope="col" class="pos-num">Total</th>
+        <th scope="col" class="pos-num">Active codes</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="{{ url_for('portfolios.detail', portfolio_id=row.id) }}">{{ row.name }}</a>
+          {% if row.description %}<div class="pos-muted pos-small">{{ row.description }}</div>{% endif %}</td>
+      <td><span class="pos-badge pos-badge-neutral">{{ row.portfolio_kind }}</span></td>
+      <td class="pos-small"><code>projects/{{ row.folder_slug }}/</code></td>
+      <td class="pos-num">
+        <a class="pos-trace" href="{{ url_for('projects.index', portfolio_id=row.id, status='active') }}">{{ row.active_count | num }}</a>
+      </td>
+      <td class="pos-num">{{ row.project_count | num }}</td>
+      <td class="pos-num">{{ row.active_codes | num }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<section class="pos-panel pos-mt-3">
+  <h2 class="pos-panel-heading">Add a portfolio</h2>
+  <form method="post" action="{{ url_for('portfolios.save') }}" class="pos-filter-bar">
+    <div class="pos-field"><label for="pn">Name</label>
+      <input type="text" id="pn" name="name" required></div>
+    <div class="pos-field"><label for="pk">Kind</label>
+      <select id="pk" name="portfolio_kind">
+        {% for option in kinds %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="pd">Description</label>
+      <input type="text" id="pd" name="description" size="36"></div>
+    <div class="pos-field"><label for="ps">Sort order</label>
+      <input type="number" id="ps" name="sort_order" value="50" size="4"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Add portfolio</button>
+    </div>
+  </form>
+  <p class="pos-muted pos-small">
+    The folder name keeps its capitals — it is a heading you read in Explorer,
+    not a URL. Only characters Windows refuses are stripped.
+  </p>
+</section>
+{% endblock %}

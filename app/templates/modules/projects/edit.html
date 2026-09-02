@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' + project.name if project else 'New project' }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">{{ 'Edit ' + project.name if project else 'New project' }}</h1>
+    <p class="pos-page-subtitle">
+      {% if project %}
+        Renaming the project <strong>moves</strong> its folder and keeps the contents.
+      {% else %}
+        Creating a project also creates its folder under the portfolio, with
+        <code>meetings/</code>, <code>attachments/</code> and <code>status/</code> inside.
+      {% endif %}
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('projects.save') }}">
+  {% if project %}<input type="hidden" name="project_id" value="{{ project.id }}">{% endif %}
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Identity</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="name">Project name <span aria-hidden="true">*</span></label>
+        <input type="text" id="name" name="name" required size="36"
+               value="{{ project.name if project else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="portfolio_id">Portfolio <span aria-hidden="true">*</span></label>
+        <select id="portfolio_id" name="portfolio_id" required>
+          {% for pf in portfolios %}
+          <option value="{{ pf.id }}" {% if project and project.portfolio_id == pf.id %}selected{% endif %}>{{ pf.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="client_org">Client</label>
+        <input type="text" id="client_org" name="client_org" value="{{ project.client_org if project else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="code">Project code</label>
+        <input type="text" id="code" name="code" value="{{ project.code if project else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="service_offering">Service offering</label>
+        <select id="service_offering" name="service_offering">
+          <option value="">—</option>
+          {% for option in service_offerings %}
+          <option value="{{ option.value }}" {% if project and project.service_offering == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="project_type">Project type</label>
+        <select id="project_type" name="project_type">
+          <option value="">—</option>
+          {% for option in project_types %}
+          <option value="{{ option.value }}" {% if project and project.project_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="pos-field pos-mt-3">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" size="80"
+             value="{{ project.description if project else '' }}">
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Status and dates</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="status">Status</label>
+        <select id="status" name="status">
+          {% for value in ['pipeline','active','on_hold','completed','cancelled'] %}
+          <option value="{{ value }}" {% if project and project.status == value %}selected{% elif not project and value == 'active' %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="priority">Priority</label>
+        <select id="priority" name="priority">
+          {% for value in ['high','medium','low'] %}
+          <option value="{{ value }}" {% if project and project.priority == value %}selected{% elif not project and value == 'medium' %}selected{% endif %}>{{ value | title }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="rag_status">RAG</label>
+        <select id="rag_status" name="rag_status">
+          <option value="">Not rated</option>
+          {% for value in ['green','amber','red'] %}
+          <option value="{{ value }}" {% if project and project.rag_status == value %}selected{% endif %}>{{ value | title }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="baseline_start">Baseline start</label>
+        <input type="date" id="baseline_start" name="baseline_start" value="{{ project.baseline_start if project else '' }}"></div>
+      <div class="pos-field"><label for="baseline_end">Baseline end</label>
+        <input type="date" id="baseline_end" name="baseline_end" value="{{ project.baseline_end if project else '' }}"></div>
+      <div class="pos-field"><label for="forecast_start">Forecast start</label>
+        <input type="date" id="forecast_start" name="forecast_start" value="{{ project.forecast_start if project else '' }}"></div>
+      <div class="pos-field"><label for="forecast_end">Forecast end</label>
+        <input type="date" id="forecast_end" name="forecast_end" value="{{ project.forecast_end if project else '' }}"></div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Money and leadership</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="rate_card_id">Rate card</label>
+        <select id="rate_card_id" name="rate_card_id">
+          <option value="">Default card for each person's company</option>
+          {% for c in cards %}
+          <option value="{{ c.id }}" {% if project and project.rate_card_id == c.id %}selected{% endif %}>{{ c.name }} ({{ c.scope }})</option>
+          {% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="erp_pct">ERP %</label>
+        <input type="number" step="0.1" min="0" max="200" id="erp_pct" name="erp_pct"
+               value="{{ project.erp_pct if project else '100' }}"></div>
+      <div class="pos-field"><label for="budget_hours">Budget hours</label>
+        <input type="number" step="0.5" min="0" id="budget_hours" name="budget_hours"
+               value="{{ project.budget_hours if project and project.budget_hours else '' }}"></div>
+      <div class="pos-field"><label for="budget_fees">Budget fees</label>
+        <input type="number" step="0.01" min="0" id="budget_fees" name="budget_fees"
+               value="{{ project.budget_fees if project and project.budget_fees else '' }}"></div>
+      <div class="pos-field"><label for="lead_partner_person_id">Lead partner</label>
+        <select id="lead_partner_person_id" name="lead_partner_person_id">
+          <option value="">—</option>
+          {% for p in people %}<option value="{{ p.id }}" {% if project and project.lead_partner_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="engagement_manager_person_id">Engagement manager</label>
+        <select id="engagement_manager_person_id" name="engagement_manager_person_id">
+          <option value="">—</option>
+          {% for p in people %}<option value="{{ p.id }}" {% if project and project.engagement_manager_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="project_lead_person_id">Project lead</label>
+        <select id="project_lead_person_id" name="project_lead_person_id">
+          <option value="">—</option>
+          {% for p in people %}<option value="{{ p.id }}" {% if project and project.project_lead_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <p class="pos-muted pos-small">
+      ERP is a discount on the bill rate. 100 means the full standard rate. Each
+      charge code can override it.
+    </p>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>
+      {{ 'Save changes' if project else 'Create project' }}
+    </button>
+    <a class="pos-btn" href="{{ url_for('projects.detail', project_id=project.id) if project else url_for('projects.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

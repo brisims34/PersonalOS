@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Activity Log{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Activity Log</h1>
+    <p class="pos-page-subtitle">
+      Every mutation, in order. Read-only by design — an audit trail you can
+      rewrite is not one.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('activity.index') }}">Show everything</a>
+  </div>
+</header>
+
+<form class="pos-filter-bar" method="get" action="{{ url_for('activity.index') }}" role="search">
+  <div class="pos-field">
+    <label for="filter-q">Summary contains</label>
+    <input type="search" id="filter-q" name="q" value="{{ filters.q }}"
+           placeholder="e.g. imported" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="filter-entity">Record type</label>
+    <select id="filter-entity" name="entity_type">
+      <option value="">All types</option>
+      {% for value in entity_types %}
+      <option value="{{ value }}" {% if filters.entity_type == value %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="filter-action">Action</label>
+    <select id="filter-action" name="action">
+      <option value="">All actions</option>
+      {% for value in actions %}
+      <option value="{{ value }}" {% if filters.action == value %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+  </div>
+</form>
+
+{% if rows %}
+<p class="pos-result-count" aria-live="polite">
+  {{ total | num }} {{ 'entry' if total == 1 else 'entries' }}
+  {% if page_count > 1 %}· page {{ page }} of {{ page_count }}{% endif %}
+</p>
+
+<table class="pos-table pos-table-sortable" data-pos-table>
+  <caption class="pos-visually-hidden">Activity log entries, most recent first</caption>
+  <thead>
+    <tr>
+      <th scope="col">When</th>
+      <th scope="col">Action</th>
+      <th scope="col">Record</th>
+      <th scope="col">Summary</th>
+      <th scope="col" class="pos-num">ID</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><time datetime="{{ row.created_at }}" title="{{ row.created_at }}">{{ row.created_at | datetime_long }}</time></td>
+      <td><span class="pos-badge pos-badge-{{ row.action }}">{{ row.action }}</span></td>
+      <td>
+        {{ row.entity_type }}{% if row.entity_id %} <span class="pos-muted">#{{ row.entity_id }}</span>{% endif %}
+      </td>
+      <td><a href="{{ url_for('activity.detail', entry_id=row.id) }}">{{ row.summary }}</a></td>
+      <td class="pos-num">{{ row.id }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_count > 1 %}
+<nav class="pos-pager" aria-label="Pagination">
+  {% if page > 1 %}
+  <a class="pos-btn" href="{{ url_for('activity.index', page=page-1, q=filters.q, entity_type=filters.entity_type, action=filters.action) }}">← Newer</a>
+  {% endif %}
+  <span class="pos-muted">Page {{ page }} of {{ page_count }}</span>
+  {% if page < page_count %}
+  <a class="pos-btn" href="{{ url_for('activity.index', page=page+1, q=filters.q, entity_type=filters.entity_type, action=filters.action) }}">Older →</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+  {% if filters.q or filters.entity_type or filters.action %}
+    {% with title='No entries match those filters',
+            body='Try widening the record type or clearing the search text.',
+            action_url=url_for('activity.index'), action_label='Clear filters' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% else %}
+    {% with title='Nothing has happened yet',
+            body='Every create, update, archive, import and sync writes one line here, with the specific effect it had. The log fills as soon as you start entering data.',
+            action_url='/', action_label='Back to Command Center' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+{% endif %}
+{% endblock %}

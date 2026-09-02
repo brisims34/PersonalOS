@@ -1,0 +1,31 @@
+# PersonalOS — runtime dependencies
+# Install into the venv:  pip install -r requirements.txt
+
+Flask>=3.0,<4.0
+Jinja2>=3.1
+Werkzeug>=3.0
+
+# Notes vault — render and sanitise markdown
+markdown>=3.5
+nh3>=0.2
+
+# Frontmatter, template pack manifests, model catalog
+PyYAML>=6.0
+
+# RFC 5545 recurrence expansion
+python-dateutil>=2.8
+
+# Timesheet, contact seed and template workbook parsing
+openpyxl>=3.1
+
+# Smartsheet REST client and model downloads
+requests>=2.31
+
+# --- Windows only, installed separately -------------------------------------
+# Outlook COM. Not listed above because the app must install and run on a
+# machine without it; every Outlook feature degrades to unavailable instead.
+#     pip install pywin32
+#
+# --- Optional, AI subsystem only (Phase 20) ---------------------------------
+# The application runs fully without these. See docs/AI_SUBSYSTEM.md.
+#     pip install onnxruntime-genai fastembed numpy

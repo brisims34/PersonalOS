@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Import contacts{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Import contacts</h1>
+    <p class="pos-page-subtitle">
+      Stage 1 of 3 — choose a file. Nothing is written until you commit, and
+      <strong>nothing is ever loaded automatically</strong>: the application does not
+      read a spreadsheet at startup or on any schedule. A file that has already been
+      loaded is refused by the database, not by a convention.
+    </p>
+  </div>
+</header>
+
+<nav class="pos-wizard" aria-label="Import progress">
+  <span class="pos-wizard-step is-current">1 · Select</span>
+  <span class="pos-wizard-step">2 · Preview</span>
+  <span class="pos-wizard-step">3 · Commit</span>
+</nav>
+
+<form method="post" action="{{ url_for('people.import_preview') }}" enctype="multipart/form-data">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Spreadsheets found</h2>
+    {% if files %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col"><span class="pos-visually-hidden">Choose</span></th>
+                 <th scope="col">File</th><th scope="col">Where</th>
+                 <th scope="col" class="pos-num">Size</th>
+                 <th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% set unloaded = files | rejectattr('prior') | list %}
+        {% for file in files %}
+        <tr {% if file.prior %}class="pos-row-archived"{% endif %}>
+          <td><input type="radio" name="path" id="f{{ loop.index }}" value="{{ file.path }}"
+                     {% if unloaded and file.path == unloaded[0].path %}checked{% elif not unloaded and loop.first %}checked{% endif %}></td>
+          <td><label for="f{{ loop.index }}">{{ file.name }}</label></td>
+          <td class="pos-small">{{ file.where }}</td>
+          <td class="pos-num">{{ (file.size / 1024) | round | int | num }} KB</td>
+          <td>
+            {% if file.prior %}
+              <span class="pos-badge pos-badge-ok">already loaded</span>
+              <div class="pos-muted pos-small">
+                {{ file.prior.imported_at | date_long }} ·
+                {{ file.prior.rows_imported | num }} row{{ 's' if file.prior.rows_imported != 1 }}
+              </div>
+            {% else %}
+              <span class="pos-badge pos-badge-neutral">not loaded</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="pos-muted pos-small">
+      Matched on the file's content hash, so a renamed copy is still recognised —
+      and a genuinely refreshed export is not.
+    </p>
+    {% else %}
+    <p class="pos-muted">
+      No <code>.xlsx</code> files in <code>app/data/inbox/</code> or the application
+      folder. Upload one below, or drop it in the inbox and reload.
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Or upload one</h2>
+    <div class="pos-field">
+      <label for="upload">Spreadsheet (.xlsx)</label>
+      <input type="file" id="upload" name="file" accept=".xlsx">
+    </div>
+    <p class="pos-muted pos-small">Uploads are saved into <code>app/data/inbox/</code>.</p>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary">Preview the import</button>
+    <a class="pos-btn" href="{{ url_for('people.index') }}">Cancel</a>
+  </div>
+</form>
+
+{% if history %}
+<section class="pos-panel pos-mt-3">
+  <h2 class="pos-panel-heading">Load history</h2>
+  <p class="pos-muted pos-small">
+    Every contact file ever loaded, from <code>import_batches</code>. This is the
+    ledger that makes a load one-time.
+  </p>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">File</th><th scope="col">Loaded</th>
+               <th scope="col" class="pos-num">Read</th>
+               <th scope="col" class="pos-num">Written</th>
+               <th scope="col" class="pos-num">Skipped</th>
+               <th scope="col">Content hash</th></tr></thead>
+    <tbody>
+      {% for row in history %}
+      <tr>
+        <td>{{ row.file_name }}</td>
+        <td>{{ row.imported_at | datetime_long }}</td>
+        <td class="pos-num">{{ row.rows_read | num }}</td>
+        <td class="pos-num">{{ row.rows_imported | num }}</td>
+        <td class="pos-num">{{ row.rows_skipped | num }}</td>
+        <td class="pos-small"><code>{{ row.file_sha256[:12] }}…</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="pos-panel pos-mt-3">
+  <h2 class="pos-panel-heading">Columns the importer looks for</h2>
+  <p class="pos-muted pos-small">
+    Matched by header text, not position — a file that gains, loses or reorders a
+    column still imports. Extra columns are ignored and listed in the preview.
+  </p>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Stored as</th><th scope="col">Accepted headers</th></tr></thead>
+    <tbody>
+      {% for field, labels in columns.items() %}
+      <tr>
+        <td><code>{{ field }}</code></td>
+        <td class="pos-small">{{ labels | join(' · ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

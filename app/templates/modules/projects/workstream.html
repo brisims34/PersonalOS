@@ -1,0 +1,119 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import person_link, status_badge %}
+{% block title %}{{ workstream.name }}{% endblock %}
+
+{% block identity_name %}{{ workstream.name }}{% endblock %}
+
+{% block identity_badges %}
+{{ status_badge(workstream.status) }}
+{% if workstream.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+<a href="{{ url_for('projects.detail', project_id=workstream.project_id) }}">{{ workstream.project_name }}</a>
+{% if workstream.lead_name %}· led by {{ workstream.lead_name }}{% endif %}
+{% if workstream.forecast_end %}· forecast end {{ workstream.forecast_end | date_long }}{% endif %}
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary"
+   href="{{ url_for('tasks.new', project_id=workstream.project_id, workstream_id=workstream.id) }}"
+   data-pos-new>+ Add task</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('projects.detail', project_id=workstream.project_id, tab='workstreams') }}">
+  All workstreams
+</a>
+{% endblock %}
+
+{% block body %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Detail</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Lead</th>
+            <td>{{ person_link(workstream.lead_person_id, workstream.lead_name) }}</td></tr>
+        <tr><th scope="row">Baseline</th>
+            <td>{{ workstream.baseline_start | date_long }} → {{ workstream.baseline_end | date_long }}</td></tr>
+        <tr><th scope="row">Forecast</th>
+            <td>{{ workstream.forecast_start | date_long }} → {{ workstream.forecast_end | date_long }}</td></tr>
+        <tr><th scope="row">Budget hours</th><td class="pos-num">{{ workstream.budget_hours | hours }}</td></tr>
+        <tr><th scope="row">Folder</th>
+            <td>{% if folder and folder.exists %}<code>{{ workstream.folder_path }}</code>
+                <div class="pos-muted pos-small">{{ folder.note_count }} note{{ 's' if folder.note_count != 1 }}</div>
+                {% elif workstream.folder_path %}<span class="pos-badge pos-badge-danger">missing on disk</span>
+                {% else %}<span class="pos-muted">not created</span>{% endif %}</td></tr>
+      </tbody>
+    </table>
+    {% if workstream.description %}<p class="pos-mt-3">{{ workstream.description }}</p>{% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Work resources ({{ resources | length }})</h2>
+    {% if resources %}
+    <ul class="pos-link-list">
+      {% for row in resources %}
+      <li>
+        <span class="pos-badge pos-badge-neutral">{{ row.resource_role }}</span>
+        <span class="pos-link-label">{{ row.label }}</span>
+        <code class="pos-small">{{ row.path_or_url }}</code>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="pos-muted">
+      Nothing recorded. Add folders, scripts and channels on the project's
+      Locations &amp; resources tab.
+    </p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">This workstream needs ({{ inbound | length }})</h2>
+    {% if inbound %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Needs</th><th scope="col">From</th>
+                 <th scope="col">By</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for row in inbound %}
+        <tr>
+          <td>{{ row.title }}</td>
+          <td class="pos-small">{{ row.to_name or row.external_party or '—' }}</td>
+          <td>{{ row.needed_by_date | date_long }}</td>
+          <td><span class="pos-badge pos-badge-{{ 'danger' if row.status == 'broken' else 'warn' if row.status == 'at_risk' else 'ok' if row.status == 'satisfied' else 'neutral' }}">{{ row.status | replace('_',' ') }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">Nothing logged as needed from elsewhere.</p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Others need from this one ({{ outbound | length }})</h2>
+    {% if outbound %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Needs</th><th scope="col">Wanted by</th>
+                 <th scope="col">By</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        {% for row in outbound %}
+        <tr>
+          <td>{{ row.title }}</td>
+          <td class="pos-small">{{ row.from_name or 'the project' }}</td>
+          <td>{{ row.needed_by_date | date_long }}</td>
+          <td><span class="pos-badge pos-badge-{{ 'danger' if row.status == 'broken' else 'warn' if row.status == 'at_risk' else 'ok' if row.status == 'satisfied' else 'neutral' }}">{{ row.status | replace('_',' ') }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">Nobody is waiting on this workstream.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

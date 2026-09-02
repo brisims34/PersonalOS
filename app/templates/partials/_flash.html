@@ -1,0 +1,17 @@
+{# Confirmations. P2: a message that could be pasted onto another feature and
+   still read correctly is wrong — it must name the effect and offer the next
+   step. Flash with a (category, message) pair; pass an onward link by flashing
+   the tuple ('success', 'text', '/url', 'Link text') is not supported, so views
+   that need a link render the markup themselves via the `link` category. #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="pos-flash-stack" aria-live="polite">
+    {% for category, message in messages %}
+    <div class="pos-flash pos-flash-{{ category | default('info', true) }}" role="status">
+      <span class="pos-flash-text">{{ message }}</span>
+      <button type="button" class="pos-flash-close" aria-label="Dismiss this message">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}

@@ -1,0 +1,81 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import person_link, priority_badge %}
+{% block title %}{{ task.title }}{% endblock %}
+
+{% block identity_name %}{{ task.title }}{% endblock %}
+
+{% block identity_badges %}
+<span class="pos-badge pos-badge-{{ 'ok' if task.status == 'completed' else 'danger' if task.status == 'blocked' else 'warn' if task.status == 'in_progress' else 'neutral' }}">
+  {{ task.status | replace('_',' ') }}</span>
+{{ priority_badge(task.priority) }}
+<span class="pos-badge pos-badge-neutral">{{ task.task_type | replace('_',' ') }}</span>
+{% if task.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+{% if task.project_name %}<a href="{{ url_for('projects.detail', project_id=task.project_id) }}">{{ task.project_name }}</a>{% endif %}
+{% if task.workstream_name %}· {{ task.workstream_name }}{% endif %}
+{% if task.charge_code %}· <a href="{{ url_for('charge_codes.detail', code_id=task.charge_code_id) }}">{{ task.charge_code }}</a>{% endif %}
+{% if task.due_date %}· due {{ task.due_date | date_long }}{% endif %}
+{% endblock %}
+
+{% block primary_action %}
+{% if task.status not in ('completed','cancelled') %}
+<form method="post" action="{{ url_for('tasks.complete', task_id=task.id) }}">
+  <button type="submit" class="pos-btn pos-btn-primary">Mark complete</button>
+</form>
+{% else %}
+<a class="pos-btn pos-btn-primary" href="{{ url_for('tasks.edit', task_id=task.id) }}" data-pos-edit>Edit task</a>
+{% endif %}
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('tasks.edit', task_id=task.id) }}" data-pos-edit>Edit</a>
+{% endblock %}
+
+{% block more_actions %}
+<form method="post" action="{{ url_for('tasks.archive', task_id=task.id) }}">
+  <button type="submit" class="pos-btn {% if not task.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if task.archived_at else 'Archive' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block body %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Detail</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Assignee</th>
+            <td>{{ person_link(task.assignee_person_id, task.assignee_name) }}</td></tr>
+        <tr><th scope="row">Start</th><td>{{ task.start_date | date_long }}</td></tr>
+        <tr><th scope="row">Due</th><td>{{ task.due_date | date_long }}</td></tr>
+        <tr><th scope="row">Estimate</th><td class="pos-num">{{ task.estimate_hours | hours }}</td></tr>
+        <tr><th scope="row">Source</th><td>{{ task.source | replace('_',' ') }}</td></tr>
+        <tr><th scope="row">Completed</th><td>{{ task.completed_at | datetime_long }}</td></tr>
+        {% if task.recurrence_id %}
+        <tr><th scope="row">Recurring</th>
+            <td>Completing this one creates the next at its next due date.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% if task.description %}<p class="pos-mt-3">{{ task.description }}</p>{% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Notes mentioning this task</h2>
+    {% if backlinks %}
+    <ul class="pos-link-list">
+      {% for row in backlinks %}
+      <li><a href="{{ url_for('notes.detail', note_id=row.id) }}">{{ row.title }}</a></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="pos-muted">
+      None. Write <code>[[task:{{ task.id }}]]</code> in any note to link it here.
+    </p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

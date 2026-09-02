@@ -1,0 +1,21 @@
+{# Command palette. A native <dialog> so focus trapping, Esc and the backdrop
+   come from the browser rather than from us. Populated by palette.js from
+   /shell/palette.json. #}
+<dialog id="pos-palette" class="pos-palette" aria-label="Search and commands">
+  <form method="dialog" class="pos-palette-form">
+    <div class="pos-palette-input-row">
+      <span class="pos-palette-prefix" aria-hidden="true">›</span>
+      <input type="text" id="pos-palette-input" class="pos-palette-input"
+             placeholder="Search, or type &gt; for commands, @ for a person, # for a tag"
+             autocomplete="off" spellcheck="false" aria-label="Search or command"
+             aria-controls="pos-palette-results" aria-expanded="true">
+    </div>
+    <ul id="pos-palette-results" class="pos-palette-results" role="listbox"
+        aria-label="Results"></ul>
+    <p class="pos-palette-foot">
+      <kbd class="pos-kbd">↑</kbd><kbd class="pos-kbd">↓</kbd> move
+      <kbd class="pos-kbd">Enter</kbd> open
+      <kbd class="pos-kbd">Esc</kbd> close
+    </p>
+  </form>
+</dialog>

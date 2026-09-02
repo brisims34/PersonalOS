@@ -1,0 +1,18 @@
+{# Never a blank panel (UI_DESIGN_SYSTEM.md §8.3). Call with:
+     {% with title='No workstreams yet', body='...', action_url='/x',
+             action_label='+ Add workstream' %}
+       {% include "partials/_empty_state.html" %}
+     {% endwith %}
+#}
+<div class="pos-empty">
+  <p class="pos-empty-title">{{ title | default('Nothing here yet', true) }}</p>
+  {% if body %}<p class="pos-empty-body">{{ body }}</p>{% endif %}
+  {% if action_url and action_label %}
+  <p class="pos-empty-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ action_url }}">{{ action_label }}</a>
+    {% if secondary_url and secondary_label %}
+    <a class="pos-btn" href="{{ secondary_url }}">{{ secondary_label }}</a>
+    {% endif %}
+  </p>
+  {% endif %}
+</div>

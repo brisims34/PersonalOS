@@ -1,0 +1,48 @@
+{% extends "partials/_object_page.html" %}
+{% block title %}Activity #{{ record.id }}{% endblock %}
+
+{% block identity_name %}Activity #{{ record.id }}{% endblock %}
+
+{% block identity_badges %}
+<span class="pos-badge pos-badge-{{ record.action }}">{{ record.action }}</span>
+<span class="pos-badge pos-badge-neutral">{{ record.entity_type }}</span>
+{% endblock %}
+
+{% block identity_subtitle %}
+{{ record.created_at | datetime_long }}
+{% if record.entity_id %}· record #{{ record.entity_id }}{% endif %}
+· {{ record.created_at | ago }}
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary"
+   href="{{ url_for('activity.index', entity_type=record.entity_type) }}">
+  Show every {{ record.entity_type }} change
+</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('activity.index', action=record.action) }}">
+  Show every “{{ record.action }}”
+</a>
+{% endblock %}
+
+{% block body %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">What happened</h2>
+  <p class="pos-lead">{{ record.summary }}</p>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Detail</h2>
+  {% if detail %}
+  <pre class="pos-code">{{ detail }}</pre>
+  <p class="pos-muted pos-small">
+    Values whose names suggest a secret are replaced with
+    <code>[redacted]</code> before they are written (CLAUDE.md rule 13).
+  </p>
+  {% else %}
+  <p class="pos-muted">No structured detail was recorded for this entry.</p>
+  {% endif %}
+</section>
+{% endblock %}

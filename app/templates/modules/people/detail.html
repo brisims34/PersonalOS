@@ -1,0 +1,364 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import person_link, status_badge, tabs %}
+{% block title %}{{ person.full_name }}{% endblock %}
+
+{% block identity_name %}{{ person.full_name }}{% endblock %}
+
+{% block identity_badges %}
+  {% if person.level_label %}
+    <span class="pos-badge pos-badge-neutral">{{ person.level_label }}</span>
+  {% else %}
+    <span class="pos-badge pos-badge-danger">no level</span>
+  {% endif %}
+  {{ status_badge(person.status) }}
+  {% if current_status and current_status.disposition != 'available' %}
+    <span class="pos-badge pos-badge-warn">{{ current_status.disposition }}</span>
+  {% endif %}
+  {% if person.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+  {% if person.import_source == 'gal_manager_chain' %}
+    <span class="pos-badge pos-badge-bench" title="Pulled from the directory to complete a reporting chain">chain-pulled</span>
+  {% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+  {{ person.job_title or 'No job title' }}
+  {% if person.function %}· {{ person.function }}{% endif %}
+  {% if person.company %}· {{ person.company }}{% endif %}
+  {% if person.email %}· <a href="mailto:{{ person.email }}">{{ person.email }}</a>{% endif %}
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary" href="{{ url_for('people.edit', person_id=person.id) }}" data-pos-edit>
+  Edit contact
+</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('org_chart.person', person_id=person.id) }}">Org chart</a>
+<a class="pos-btn" href="{{ url_for('rates.calculator', person_id=person.id, as_of=as_of) }}">
+  Rate calculator
+</a>
+{% endblock %}
+
+{% block more_actions %}
+<form method="post" action="{{ url_for('people.archive', person_id=person.id) }}"
+      onsubmit="return confirm('{{ 'Restore' if person.archived_at else 'Archive' }} {{ person.full_name }}? Nothing is deleted.');">
+  <button type="submit" class="pos-btn {% if not person.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if person.archived_at else 'Archive' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block tabs %}
+{{ tabs([('overview','Overview'), ('rates','Level & rates'), ('capacity','Capacity & status'),
+         ('org','Reporting'), ('notes','Notes')], tab,
+        url_for('people.detail', person_id=person.id)) }}
+{% endblock %}
+
+{% block body %}
+
+{% if tab == 'overview' %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Directory</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Email</th><td>{{ person.email or '—' }}</td></tr>
+        <tr><th scope="row">Business phone</th><td>{{ person.business_phone or '—' }}</td></tr>
+        <tr><th scope="row">Mobile</th><td>{{ person.mobile_phone or '—' }}</td></tr>
+        <tr><th scope="row">Location</th><td>{{ person.city or '—' }}{% if person.state_province %}, {{ person.state_province }}{% endif %}</td></tr>
+        <tr><th scope="row">Department</th><td>{{ person.department or '—' }}</td></tr>
+        <tr><th scope="row">Company</th><td>{{ person.company or '—' }}</td></tr>
+        <tr><th scope="row">Manager</th><td>
+          {{ person_link(person.manager_id, person.manager_name) }}
+          {% if not person.manager_id and person.manager_email %}
+            <span class="pos-muted pos-small">{{ person.manager_email }} — not in the database yet</span>
+          {% endif %}
+        </td></tr>
+        <tr><th scope="row">Source</th><td>{{ person.import_source | replace('_', ' ') }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Working notes</h2>
+    {% if person.notes or person.strengths or person.development_areas %}
+      {% if person.notes %}<p>{{ person.notes }}</p>{% endif %}
+      {% if person.strengths %}<p><strong>Strengths.</strong> {{ person.strengths }}</p>{% endif %}
+      {% if person.development_areas %}<p><strong>Development.</strong> {{ person.development_areas }}</p>{% endif %}
+    {% else %}
+      <p class="pos-muted">Nothing recorded. These fields are yours — an import never overwrites them.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% elif tab == 'rates' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Resolved rate as at {{ as_of | date_long }}</h2>
+  {% if resolved.is_priced %}
+  <table class="pos-table pos-table-compact">
+    <tbody>
+      <tr><th scope="row">Level</th><td>{{ resolved.level_label }}</td></tr>
+      <tr><th scope="row">Standard rate</th><td class="pos-num">{{ resolved.standard_rate | money }}</td></tr>
+      <tr><th scope="row">ERP</th><td class="pos-num">{{ resolved.erp_pct | pct(1) }}</td></tr>
+      <tr><th scope="row"><strong>Engagement rate</strong></th>
+          <td class="pos-num"><strong>{{ resolved.engagement_rate | money }}</strong></td></tr>
+      <tr><th scope="row">Cost rate</th><td class="pos-num">{{ resolved.cost_rate | money }}</td></tr>
+      <tr><th scope="row">Resolved from</th><td>{{ resolved.source | replace('_', ' ') }}</td></tr>
+    </tbody>
+  </table>
+  <p class="pos-muted pos-small">
+    ERP is a discount on the bill rate only. Cost rates are never touched by it —
+    applying it to cost would inflate margin on every engagement.
+  </p>
+  {% else %}
+  <p class="pos-flash pos-flash-warning" role="status">
+    <span class="pos-flash-text">
+      <strong>Unpriced.</strong>
+      {% if not resolved.level_id %}
+        No level is set, so no rate card row applies.
+      {% else %}
+        No rate card covers {{ resolved.level_label }} on {{ as_of | date_long }}.
+      {% endif %}
+      This returns nothing rather than zero, on purpose — a zero that looks like a
+      real rate is more dangerous than a visible gap.
+    </span>
+  </p>
+  {% endif %}
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Level history</h2>
+  {% if history %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Level</th><th scope="col">From</th><th scope="col">To</th>
+               <th scope="col">Reason</th><th scope="col">Note</th></tr></thead>
+    <tbody>
+      {% for row in history %}
+      <tr>
+        <td>{{ row.level_label }}</td>
+        <td>{{ row.effective_from | date_long }}</td>
+        <td>{{ row.effective_to | date_long if row.effective_to else 'current' }}</td>
+        <td><span class="pos-badge pos-badge-neutral">{{ row.reason }}</span></td>
+        <td class="pos-small">{{ row.note or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="pos-muted">
+    No history yet. The level shown above comes from <code>people.level_id</code>,
+    which the import set from job title. Recording a change below starts the audit trail.
+  </p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('people.change_level', person_id=person.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field">
+      <label for="lv">New level</label>
+      <select id="lv" name="level_id" required>
+        {% for level in levels %}
+        <option value="{{ level.id }}" {% if level.id == person.level_id %}selected{% endif %}>{{ level.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="pos-field">
+      <label for="lvfrom">Effective from</label>
+      <input type="date" id="lvfrom" name="effective_from" required>
+    </div>
+    <div class="pos-field">
+      <label for="lvreason">Reason</label>
+      <select id="lvreason" name="reason">
+        <option value="promotion">Promotion</option>
+        <option value="annual">Annual</option>
+        <option value="hire">Hire</option>
+        <option value="correction">Correction — a data fix, not a promotion</option>
+        <option value="departure">Departure</option>
+      </select>
+    </div>
+    <div class="pos-field">
+      <label for="lvnote">Note</label>
+      <input type="text" id="lvnote" name="note" placeholder="optional">
+    </div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Record level change</button>
+    </div>
+  </form>
+  <p class="pos-muted pos-small">
+    A <strong>correction</strong> changes the level without touching the promotion
+    clock. Only a promotion moves <code>last_promoted_on</code>.
+  </p>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Rate overrides</h2>
+  <p class="pos-muted pos-small">
+    An override beats every rate card. This is how a contractor, who has no card
+    row at all, gets priced.
+  </p>
+  {% if overrides %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Bill</th><th scope="col">Cost</th><th scope="col">From</th>
+               <th scope="col">To</th><th scope="col">Card</th><th scope="col">Reason</th></tr></thead>
+    <tbody>
+      {% for row in overrides %}
+      <tr>
+        <td class="pos-num">{{ row.bill_rate | money }}</td>
+        <td class="pos-num">{{ row.cost_rate | money }}</td>
+        <td>{{ row.effective_from | date_long }}</td>
+        <td>{{ row.effective_to | date_long if row.effective_to else 'open' }}</td>
+        <td class="pos-small">{{ row.card_name or 'any card' }}</td>
+        <td class="pos-small">{{ row.reason or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="{{ url_for('people.add_override', person_id=person.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="ob">Bill rate</label>
+      <input type="number" step="0.01" min="0" id="ob" name="bill_rate" required></div>
+    <div class="pos-field"><label for="oc">Cost rate</label>
+      <input type="number" step="0.01" min="0" id="oc" name="cost_rate"></div>
+    <div class="pos-field"><label for="of">From</label>
+      <input type="date" id="of" name="effective_from" required></div>
+    <div class="pos-field"><label for="ot">To</label>
+      <input type="date" id="ot" name="effective_to"></div>
+    <div class="pos-field"><label for="or">Reason</label>
+      <input type="text" id="or" name="reason" placeholder="e.g. contractor agreement"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn">Add override</button>
+    </div>
+  </form>
+</section>
+
+{% elif tab == 'capacity' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Capacity</h2>
+  {% if capacity %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Weekly hours</th><th scope="col">FTE</th>
+               <th scope="col">From</th><th scope="col">To</th><th scope="col">Note</th></tr></thead>
+    <tbody>
+      {% for row in capacity %}
+      <tr>
+        <td class="pos-num">{{ row.weekly_hours | num(1) }}</td>
+        <td class="pos-num">{{ row.fte | num(2) }}</td>
+        <td>{{ row.effective_from | date_long }}</td>
+        <td>{{ row.effective_to | date_long if row.effective_to else 'current' }}</td>
+        <td class="pos-small">{{ row.note or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="pos-muted">No capacity recorded. Utilization needs this to mean anything.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('people.add_capacity', person_id=person.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="cw">Weekly hours</label>
+      <input type="number" step="0.5" min="0" id="cw" name="weekly_hours" value="40" required></div>
+    <div class="pos-field"><label for="cfte">FTE</label>
+      <input type="number" step="0.05" min="0" max="2" id="cfte" name="fte" value="1.0"></div>
+    <div class="pos-field"><label for="cf">From</label>
+      <input type="date" id="cf" name="effective_from" required></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn">Set capacity</button>
+    </div>
+  </form>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Disposition</h2>
+  {% if statuses %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Status</th><th scope="col">From</th><th scope="col">To</th>
+               <th scope="col">Detail</th><th scope="col">Source</th></tr></thead>
+    <tbody>
+      {% for row in statuses %}
+      <tr>
+        <td><span class="pos-badge pos-badge-neutral">{{ row.disposition }}</span></td>
+        <td>{{ row.start_date | date_long }}</td>
+        <td>{{ row.end_date | date_long if row.end_date else 'open' }}</td>
+        <td class="pos-small">{{ row.detail or '—' }}</td>
+        <td class="pos-small">{{ row.source }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="pos-muted">Nothing recorded, so they read as Active &amp; Ready.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('people.add_status', person_id=person.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="sd">Status</label>
+      <select id="sd" name="disposition" required>
+        {% for option in dispositions %}
+        <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="ss">From</label>
+      <input type="date" id="ss" name="start_date" required></div>
+    <div class="pos-field"><label for="se">To</label>
+      <input type="date" id="se" name="end_date"></div>
+    <div class="pos-field"><label for="sdt">Detail</label>
+      <input type="text" id="sdt" name="detail" placeholder="optional"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn">Record</button>
+    </div>
+  </form>
+</section>
+
+{% elif tab == 'org' %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Reports up to</h2>
+    {% if chain %}
+    <ol class="pos-trail">
+      {% for row in chain %}
+      <li class="pos-trail-item">
+        <span class="pos-badge pos-badge-neutral">{{ row.depth }}</span>
+        <span class="pos-trail-summary">{{ person_link(row.id, row.full_name) }}
+          <span class="pos-muted pos-small">{{ row.job_title or '' }}</span></span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="pos-muted">
+      No manager linked.
+      {% if person.manager_email %}The directory says {{ person.manager_email }}, who is not in the database yet.{% endif %}
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Direct reports ({{ reports | length }})</h2>
+    {% if reports %}
+    <ul class="pos-link-list">
+      {% for row in reports %}
+      <li>{{ person_link(row.id, row.full_name, row.level_label) }}</li>
+      {% endfor %}
+    </ul>
+    <p class="pos-mt-3"><a href="{{ url_for('org_chart.person', person_id=person.id) }}">Full downline →</a></p>
+    {% else %}
+    <p class="pos-muted">Nobody reports to {{ person.first_name }}.</p>
+    {% endif %}
+  </section>
+</div>
+<p class="pos-muted pos-small">
+  This is the administrative reporting line from the directory. It is deliberately
+  separate from the counselee relationship, which is the performance line —
+  people often report to one person and are counselled by another.
+</p>
+
+{% elif tab == 'notes' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Notes mentioning {{ person.first_name }}</h2>
+  <p class="pos-muted">
+    Notes linking to this person with <code>[[person:{{ person.full_name }}]]</code>
+    appear here once the vault is indexed.
+  </p>
+</section>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Something broke{% endblock %}
+
+{% block content %}
+<div class="pos-error-page">
+  <p class="pos-error-code">500</p>
+  <h1 class="pos-page-title">Something broke on the way to this page</h1>
+  <p class="pos-page-subtitle">
+    The full traceback is in the console window running <code>python run.py</code>.
+    Your data is untouched — a request that fails part-way is rolled back.
+  </p>
+  <p class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="/">Back to Command Center</a>
+    <a class="pos-btn" href="/activity">Activity log</a>
+  </p>
+</div>
+{% endblock %}

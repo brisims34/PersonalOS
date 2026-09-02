@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+
+{% block content %}
+<div class="pos-error-page">
+  <p class="pos-error-code">404</p>
+  <h1 class="pos-page-title">That page is not here</h1>
+  <p class="pos-page-subtitle">
+    Either the address is wrong, or the module that owns it has not been built
+    yet — a module registers as disabled until its phase lands, and its routes
+    return this page until then.
+  </p>
+  <p class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="/">Back to Command Center</a>
+    <button type="button" class="pos-btn" data-pos-open="palette">Search everything</button>
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New note{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">New note</h1>
+    <p class="pos-page-subtitle">
+      Creates a real <code>.md</code> file on disk, then indexes it. Folders in
+      the path are created if they do not exist.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('notes.create') }}">
+  <section class="pos-panel">
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="root_id">Vault root</label>
+        <select id="root_id" name="root_id" required>
+          {% for root in roots %}
+          <option value="{{ root.id }}">{{ root.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="rel_path">Path inside that root</label>
+        <input type="text" id="rel_path" name="rel_path" required size="48"
+               value="{{ suggested_path }}"
+               placeholder="Client Delivery/acme-sell-side/kickoff-notes.md">
+      </div>
+      <div class="pos-field">
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" size="30">
+      </div>
+    </div>
+    <p class="pos-muted pos-small">
+      The <code>.md</code> extension is added if you leave it off. Path traversal
+      is rejected — a note cannot be written outside its root.
+    </p>
+  </section>
+
+  <section class="pos-panel">
+    <label class="pos-panel-heading" for="body">Content</label>
+    <textarea id="body" name="body" class="pos-editor-input" rows="18"
+              placeholder="---&#10;title: My note&#10;tags: [example]&#10;---&#10;&#10;# My note&#10;&#10;Write here. Link records with [[project:some-project]]."></textarea>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Create note</button>
+    <a class="pos-btn" href="{{ url_for('notes.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,456 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import person_link, status_badge, rag_badge, priority_badge, tabs %}
+{% block title %}{{ project.name }}{% endblock %}
+
+{% block identity_name %}{{ project.name }}{% endblock %}
+
+{% block identity_badges %}
+{{ status_badge(project.status) }}
+{{ priority_badge(project.priority) }}
+{{ rag_badge(project.rag_status) }}
+{% if project.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+{{ project.portfolio_name }}
+{% if project.client_org %}· {{ project.client_org }}{% endif %}
+{% if project.project_type %}· {{ project.project_type }}{% endif %}
+{% if project.code %}· {{ project.code }}{% endif %}
+{% if project.forecast_end %}· forecast end {{ project.forecast_end | date_long }}{% endif %}
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary" href="{{ url_for('tasks.new', project_id=project.id) }}" data-pos-new>
+  + Add task
+</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('projects.edit', project_id=project.id) }}" data-pos-edit>Edit</a>
+{% if project.folder_path %}
+<form method="post" action="{{ url_for('projects.open_folder', project_id=project.id) }}">
+  <button type="submit" class="pos-btn">Open folder</button>
+</form>
+{% else %}
+<form method="post" action="{{ url_for('projects.provision', project_id=project.id) }}">
+  <button type="submit" class="pos-btn">Create folder</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block more_actions %}
+<form method="post" action="{{ url_for('projects.archive', project_id=project.id) }}"
+      onsubmit="return confirm('{{ 'Restore' if project.archived_at else 'Archive' }} {{ project.name }}? The folder on disk is left exactly as it is.');">
+  <button type="submit" class="pos-btn {% if not project.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if project.archived_at else 'Archive' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block tabs %}
+{{ tabs(tab_items, tab, url_for('projects.detail', project_id=project.id)) }}
+{% endblock %}
+
+{% block body %}
+
+{% if tab == 'overview' %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Dates and money</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Baseline</th>
+            <td>{{ project.baseline_start | date_long }} → {{ project.baseline_end | date_long }}</td></tr>
+        <tr><th scope="row">Forecast</th>
+            <td>{{ project.forecast_start | date_long }} → {{ project.forecast_end | date_long }}</td></tr>
+        <tr><th scope="row">Rate card</th><td>{{ project.rate_card_name or 'default card' }}</td></tr>
+        <tr><th scope="row">ERP</th><td class="pos-num">{{ project.erp_pct | pct(1) }}</td></tr>
+        <tr><th scope="row">Budget hours</th><td class="pos-num">{{ project.budget_hours | hours }}</td></tr>
+        <tr><th scope="row">Budget fees</th><td class="pos-num">{{ project.budget_fees | money }}</td></tr>
+      </tbody>
+    </table>
+    <p class="pos-muted pos-small">
+      Budget-to-actual arrives at Phase 9, when time entries exist to compare against.
+    </p>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Leadership and folder</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Lead partner</th>
+            <td>{{ person_link(project.lead_partner_person_id, project.lead_partner_name) }}</td></tr>
+        <tr><th scope="row">Engagement manager</th>
+            <td>{{ person_link(project.engagement_manager_person_id, project.engagement_manager_name) }}</td></tr>
+        <tr><th scope="row">Project lead</th>
+            <td>{{ person_link(project.project_lead_person_id, project.project_lead_name) }}</td></tr>
+        <tr><th scope="row">Folder</th>
+            <td>
+              {% if folder and folder.exists %}
+                <code>{{ project.folder_path }}</code>
+                <div class="pos-muted pos-small">
+                  {{ folder.file_count }} file{{ 's' if folder.file_count != 1 }},
+                  {{ folder.note_count }} note{{ 's' if folder.note_count != 1 }}
+                </div>
+              {% elif project.folder_path %}
+                <span class="pos-badge pos-badge-danger">missing on disk</span>
+                <code>{{ project.folder_path }}</code>
+              {% else %}
+                <span class="pos-muted">not created</span>
+              {% endif %}
+            </td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+{% if project.description %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Description</h2>
+  <p>{{ project.description }}</p>
+</section>
+{% endif %}
+
+{% elif tab == 'workstreams' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Workstreams ({{ workstreams | length }})</h2>
+  {% if workstreams %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Workstream</th><th scope="col">Lead</th><th scope="col">Status</th>
+               <th scope="col">Forecast end</th><th scope="col" class="pos-num">Codes</th>
+               <th scope="col">Folder</th></tr></thead>
+    <tbody>
+      {% for row in workstreams %}
+      <tr>
+        <td><a href="{{ url_for('projects.workstream', workstream_id=row.id) }}">{{ row.name }}</a></td>
+        <td>{{ person_link(row.lead_person_id, row.lead_name) }}</td>
+        <td>{{ status_badge(row.status) }}</td>
+        <td>{{ row.forecast_end | date_long }}</td>
+        <td class="pos-num">{{ row.code_count | num }}</td>
+        <td class="pos-small">{% if row.folder_path %}<code>{{ row.folder_path.split('/')[-1] }}</code>
+            {% else %}<span class="pos-muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No workstreams yet',
+            body='Workstreams break a project into parallel tracks, each with its own lead, dates, budget and notes folder. Creating one also creates its folder on disk and its charter note.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('projects.add_workstream', project_id=project.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="wn">Name</label>
+      <input type="text" id="wn" name="name" required placeholder="e.g. Financial Due Diligence"></div>
+    <div class="pos-field"><label for="wl">Lead</label>
+      <select id="wl" name="lead_person_id"><option value="">—</option>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.full_name }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="wfs">Start</label>
+      <input type="date" id="wfs" name="forecast_start"></div>
+    <div class="pos-field"><label for="wfe">End</label>
+      <input type="date" id="wfe" name="forecast_end"></div>
+    <div class="pos-field"><label for="wbh">Budget hours</label>
+      <input type="number" step="0.5" min="0" id="wbh" name="budget_hours"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Add workstream</button>
+    </div>
+  </form>
+</section>
+
+{% elif tab == 'codes' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Charge codes ({{ codes | length }})</h2>
+  <p class="pos-muted pos-small">
+    Time is booked against the <strong>code</strong>, not the project — project and
+    workstream are derived from it. Leadership falls back to the project's when
+    a code leaves it blank.
+  </p>
+  {% if codes %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Workstream</th>
+               <th scope="col">Status</th><th scope="col">Lead partner</th>
+               <th scope="col">Engagement manager</th></tr></thead>
+    <tbody>
+      {% for row in codes %}
+      <tr>
+        <td><a href="{{ url_for('charge_codes.detail', code_id=row.id) }}">{{ row.code }}</a>
+            {% if row.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}</td>
+        <td>{{ row.name }}</td>
+        <td class="pos-small">{{ row.workstream_name or 'whole project' }}</td>
+        <td>{{ status_badge(row.status) }}</td>
+        <td class="pos-small">{{ row.lead_partner_name or '—' }}
+            {% if row.partner_inherited and row.lead_partner_name %}
+            <span class="pos-badge pos-badge-neutral">from project</span>{% endif %}</td>
+        <td class="pos-small">{{ row.engagement_manager_name or '—' }}
+            {% if row.manager_inherited and row.engagement_manager_name %}
+            <span class="pos-badge pos-badge-neutral">from project</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No charge codes yet',
+            body='Without a charge code there is nowhere to book time, and nothing for a timesheet import to reconcile against. A project can have several — one per workstream is common.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('charge_codes.save') }}" class="pos-filter-bar pos-mt-3">
+    <input type="hidden" name="project_id" value="{{ project.id }}">
+    <div class="pos-field"><label for="cc">Code</label>
+      <input type="text" id="cc" name="code" required placeholder="e.g. ACME-2026-01"></div>
+    <div class="pos-field"><label for="cnm">Name</label>
+      <input type="text" id="cnm" name="name" required></div>
+    <div class="pos-field"><label for="cws">Workstream</label>
+      <select id="cws" name="workstream_id"><option value="">Whole project</option>
+        {% for w in workstreams %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="cdf">Default</label>
+      <select id="cdf" name="is_default"><option value="0">No</option><option value="1">Yes</option></select></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Add charge code</button>
+    </div>
+  </form>
+</section>
+
+{% elif tab == 'team' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Team ({{ team | length }})</h2>
+  {% if team %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Name</th><th scope="col">Level</th><th scope="col">Job title</th>
+               <th scope="col">Role on this project</th></tr></thead>
+    <tbody>
+      {% for row in team %}
+      <tr>
+        <td>{{ person_link(row.id, row.full_name) }}</td>
+        <td class="pos-small">{{ row.level_label or '—' }}</td>
+        <td class="pos-small">{{ row.job_title or '—' }}</td>
+        <td class="pos-small">{{ row.link_label or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='Nobody linked yet',
+            body='Linking people here is what fills the team table in each workstream charter. Formal assignments with allocation percentages arrive at Phase 11.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('projects.add_team_member', project_id=project.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="tp">Person</label>
+      <select id="tp" name="person_id" required>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.full_name }}{% if p.level_label %} — {{ p.level_label }}{% endif %}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="tr">Role</label>
+      <input type="text" id="tr" name="role" placeholder="e.g. Workstream Lead"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Link to project</button>
+    </div>
+  </form>
+</section>
+
+{% elif tab == 'locations' %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Physical sites ({{ locations | length }})</h2>
+    {% if locations %}
+    {% for row in locations %}
+    <div class="pos-card-block">
+      <strong>{{ row.name }}</strong>
+      <span class="pos-badge pos-badge-neutral">{{ row.location_kind | replace('_',' ') }}</span>
+      <div class="pos-muted pos-small">
+        {{ [row.address_line1, row.city, row.state_province, row.postal_code] | select | join(', ') }}
+      </div>
+      {% if row.building or row.floor or row.room %}
+      <div class="pos-small">
+        {% if row.building %}Building {{ row.building }}{% endif %}
+        {% if row.floor %}· Floor {{ row.floor }}{% endif %}
+        {% if row.room %}· Room {{ row.room }}{% endif %}
+      </div>
+      {% endif %}
+      {% if row.access_notes %}<div class="pos-small"><em>Access.</em> {{ row.access_notes }}</div>{% endif %}
+      {% if row.logistics_notes %}<div class="pos-small"><em>Logistics.</em> {{ row.logistics_notes }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="pos-muted">
+      No sites linked. Building access, floor and escort rules are exactly what a
+      new joiner cannot find out for themselves.
+    </p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('projects.add_location', project_id=project.id) }}"
+          class="pos-filter-bar pos-mt-3">
+      <div class="pos-field"><label for="ln">Site name</label>
+        <input type="text" id="ln" name="name" required></div>
+      <div class="pos-field"><label for="lk">Kind</label>
+        <select id="lk" name="location_kind">
+          {% for value in ['client_site','firm_office','coworking','remote','other'] %}
+          <option value="{{ value }}">{{ value | replace('_',' ') | title }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="la">Address</label>
+        <input type="text" id="la" name="address_line1"></div>
+      <div class="pos-field"><label for="lc">City</label>
+        <input type="text" id="lc" name="city"></div>
+      <div class="pos-field"><label for="lb">Building</label>
+        <input type="text" id="lb" name="building" size="8"></div>
+      <div class="pos-field"><label for="lf">Floor</label>
+        <input type="text" id="lf" name="floor" size="5"></div>
+      <div class="pos-field"><label for="lr">Room</label>
+        <input type="text" id="lr" name="room" size="6"></div>
+      <div class="pos-field"><label for="lan">Access notes</label>
+        <input type="text" id="lan" name="access_notes" size="30"
+               placeholder="badge, escort, parking"></div>
+      <div class="pos-field pos-field-actions">
+        <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Add site</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Folders, files and channels ({{ resources | length }})</h2>
+    <p class="pos-muted pos-small">Paths only — PersonalOS never reads or stores the contents.</p>
+    {% if resources %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Resource</th><th scope="col">Role</th>
+                 <th scope="col">Path</th><th scope="col">Checked</th></tr></thead>
+      <tbody>
+        {% for row in resources %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td><span class="pos-badge pos-badge-neutral">{{ row.resource_role }}</span></td>
+          <td class="pos-small"><code>{{ row.path_or_url }}</code></td>
+          <td>
+            {% if row.verify_status == 'ok' %}<span class="pos-badge pos-badge-ok">found</span>
+            {% elif row.verify_status == 'missing' %}<span class="pos-badge pos-badge-danger">missing</span>
+            {% elif row.verify_status == 'not_verifiable' %}<span class="pos-badge pos-badge-neutral">URL</span>
+            {% else %}<span class="pos-muted pos-small">unchecked</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" action="{{ url_for('projects.verify_resources', project_id=project.id) }}"
+          class="pos-mt-3">
+      <button type="submit" class="pos-btn">Verify every path</button>
+    </form>
+    {% else %}
+    <p class="pos-muted">Nothing recorded yet.</p>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('projects.add_resource', project_id=project.id) }}"
+          class="pos-filter-bar pos-mt-3">
+      <div class="pos-field"><label for="rl">Label</label>
+        <input type="text" id="rl" name="label" required></div>
+      <div class="pos-field"><label for="rk">Kind</label>
+        <select id="rk" name="resource_kind">
+          {% for value in ['folder','file','script','repo','chat_channel','email_thread','url','dashboard','mailbox','other'] %}
+          <option value="{{ value }}">{{ value | replace('_',' ') | title }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="rr">Role</label>
+        <select id="rr" name="resource_role">
+          {% for value in ['input','working','output','reference','communication'] %}
+          <option value="{{ value }}">{{ value | title }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field"><label for="rp">Path or URL</label>
+        <input type="text" id="rp" name="path_or_url" size="40" required></div>
+      <div class="pos-field"><label for="rws">Workstream</label>
+        <select id="rws" name="workstream_id"><option value="">Whole project</option>
+          {% for w in workstreams %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+        </select></div>
+      <div class="pos-field pos-field-actions">
+        <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Record resource</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% elif tab == 'dependencies' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Dependencies ({{ deps | length }})</h2>
+  <p class="pos-muted pos-small">
+    Dependencies <strong>across</strong> workstreams matter most, because nobody
+    owns the gap between two teams by default.
+  </p>
+  {% if deps %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Needs</th><th scope="col">From</th><th scope="col">Provided by</th>
+               <th scope="col">Type</th><th scope="col">Criticality</th>
+               <th scope="col">Needed by</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      {% for row in deps %}
+      <tr>
+        <td>{{ row.title }}</td>
+        <td class="pos-small">{{ row.from_name or 'the project' }}</td>
+        <td class="pos-small">{{ row.to_name or row.external_party or '—' }}
+            {% if not row.to_name and row.external_party %}
+            <span class="pos-badge pos-badge-neutral">external</span>{% endif %}</td>
+        <td class="pos-small">{{ row.dependency_type | replace('_',' ') }}</td>
+        <td>
+          <span class="pos-badge pos-badge-{{ 'danger' if row.criticality == 'critical' else 'warn' if row.criticality == 'important' else 'neutral' }}">
+            {{ row.criticality }}</span>
+        </td>
+        <td>{{ row.needed_by_date | date_long }}</td>
+        <td>
+          <form method="post" action="{{ url_for('projects.dependency_status', dependency_id=row.id) }}">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <label class="pos-visually-hidden" for="ds{{ row.id }}">Status</label>
+            <select id="ds{{ row.id }}" name="status" onchange="this.form.submit()">
+              {% for value in ['identified','confirmed','at_risk','satisfied','broken'] %}
+              <option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ value | replace('_',' ') }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No dependencies logged',
+            body='A dependency is something this project needs from somewhere else — another workstream, or an external party. Logging it is what makes it somebody&#39;s problem before it is a crisis.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('projects.add_dependency', project_id=project.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="dt">What is needed</label>
+      <input type="text" id="dt" name="title" required size="30"></div>
+    <div class="pos-field"><label for="df">Needed by workstream</label>
+      <select id="df" name="from_workstream_id"><option value="">The project</option>
+        {% for w in workstreams %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="dto">Provided by workstream</label>
+      <select id="dto" name="to_workstream_id"><option value="">—</option>
+        {% for w in workstreams %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="dex">…or external party</label>
+      <input type="text" id="dex" name="external_party" placeholder="e.g. Client IT"></div>
+    <div class="pos-field"><label for="dty">Type</label>
+      <select id="dty" name="dependency_type">
+        {% for value in ['blocks','provides_data','requires_signoff','informs','shares_resource'] %}
+        <option value="{{ value }}">{{ value | replace('_',' ') | title }}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="dcr">Criticality</label>
+      <select id="dcr" name="criticality">
+        <option value="critical">Critical</option>
+        <option value="important" selected>Important</option>
+        <option value="minor">Minor</option>
+      </select></div>
+    <div class="pos-field"><label for="dnb">Needed by</label>
+      <input type="date" id="dnb" name="needed_by_date"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Log dependency</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+{% endblock %}

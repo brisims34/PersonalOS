@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Rate calculator{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Rate calculator</h1>
+    <p class="pos-page-subtitle">
+      Resolve one person on one date and see every step. The answer matters less
+      than the chain that produced it.
+    </p>
+  </div>
+</header>
+
+<form method="get" class="pos-filter-bar">
+  <div class="pos-field">
+    <label for="pid">Person</label>
+    <select id="pid" name="person_id" required>
+      <option value="">Choose…</option>
+      {% for row in people %}
+      <option value="{{ row.id }}" {% if person and person.id == row.id %}selected{% endif %}>
+        {{ row.full_name }}{% if row.level_label %} — {{ row.level_label }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="ao">Work date</label>
+    <input type="date" id="ao" name="as_of" value="{{ as_of }}">
+  </div>
+  <div class="pos-field">
+    <label for="ep">ERP %</label>
+    <input type="number" step="0.1" min="0" max="200" id="ep" name="erp_pct"
+           value="{{ erp if erp is not none else '' }}" placeholder="project default">
+  </div>
+  <div class="pos-field">
+    <label for="hr">Hours</label>
+    <input type="number" step="0.5" min="0" id="hr" name="hours" value="{{ hours }}">
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn pos-btn-primary">Resolve</button>
+  </div>
+</form>
+
+{% if person and resolved %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">How this was calculated</h2>
+    {% if resolved.is_priced %}
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Person</th><td>{{ person.full_name }}</td></tr>
+        <tr><th scope="row">Level on {{ as_of | date_long }}</th><td>{{ resolved.level_label }}</td></tr>
+        <tr><th scope="row">Standard rate</th><td class="pos-num">{{ resolved.standard_rate | money }}</td></tr>
+        <tr><th scope="row">× ERP</th><td class="pos-num">{{ resolved.erp_pct | pct(1) }}</td></tr>
+        <tr class="pos-row-total">
+          <th scope="row"><strong>= Engagement rate</strong></th>
+          <td class="pos-num"><strong>{{ resolved.engagement_rate | money }}</strong></td></tr>
+        <tr><th scope="row">× Hours</th><td class="pos-num">{{ hours | num(1) }}</td></tr>
+        <tr class="pos-row-total">
+          <th scope="row"><strong>= Revenue</strong></th>
+          <td class="pos-num"><strong>{{ revenue | money }}</strong></td></tr>
+        <tr><th scope="row">Cost rate (ERP not applied)</th><td class="pos-num">{{ resolved.cost_rate | money }}</td></tr>
+        <tr><th scope="row">Cost</th><td class="pos-num">{{ cost | money }}</td></tr>
+        <tr><th scope="row">Margin</th>
+            <td class="pos-num">
+              {% if revenue and cost %}{{ ((revenue - cost) / revenue * 100) | pct(1) }}{% else %}—{% endif %}
+            </td></tr>
+        <tr><th scope="row">Resolved from</th>
+            <td>{{ resolved.source | replace('_', ' ') }}</td></tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-flash pos-flash-warning" role="status">
+      <span class="pos-flash-text">
+        <strong>{{ person.full_name }} is unpriced on {{ as_of | date_long }}.</strong>
+        {% if not resolved.level_id %}
+          No level is set for them.
+        {% else %}
+          No rate card covers {{ resolved.level_label }} on that date, and there is
+          no person-level override.
+        {% endif %}
+        This resolves to nothing rather than zero, on purpose.
+      </span>
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Level history used</h2>
+    {% if history %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Level</th><th scope="col">From</th><th scope="col">To</th>
+                 <th scope="col">Reason</th></tr></thead>
+      <tbody>
+        {% for row in history %}
+        <tr {% if row.effective_from <= as_of and (not row.effective_to or row.effective_to >= as_of) %}
+            class="pos-row-current"{% endif %}>
+          <td>{{ row.level_label }}</td>
+          <td>{{ row.effective_from | date_long }}</td>
+          <td>{{ row.effective_to | date_long if row.effective_to else 'current' }}</td>
+          <td class="pos-small">{{ row.reason }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="pos-muted pos-small">
+      The highlighted row is the one in force on the work date. Change the date
+      above to see a promotion reprice.
+    </p>
+    {% else %}
+    <p class="pos-muted">
+      No level history. The level came from <code>people.level_id</code>, which the
+      import set from job title. Record a level change on their page to build the
+      audit trail.
+    </p>
+    {% endif %}
+    <p class="pos-mt-3">
+      <a href="{{ url_for('people.detail', person_id=person.id, tab='rates') }}">
+        Open {{ person.first_name }}'s rates →
+      </a>
+    </p>
+  </section>
+</div>
+{% else %}
+  {% with title='Choose a person and a date',
+          body='The calculator walks the same resolution order the budget engine uses: a person-level override first, then the level in force on that date against the project card, then the default card for their company.' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% endif %}
+{% endblock %}

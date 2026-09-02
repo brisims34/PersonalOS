@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link, pager %}
+{% block title %}Contacts{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Contacts</h1>
+    <p class="pos-page-subtitle">
+      Everyone you staff, counsel or work alongside. Job title is what the
+      directory says; <strong>level</strong> is what they bill at, and rates hang
+      off level.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('people.import_select') }}">Import contacts</a>
+    <a class="pos-btn" href="{{ url_for('people.new') }}" data-pos-new>+ Add contact</a>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Roster summary">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.totals.total | num }}</span>
+    <span class="pos-stat-label">Contacts</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('people.index', unmapped=1) }}">{{ summary.totals.unmapped | num }}</a>
+    </span>
+    <span class="pos-stat-label">No level — these price at nothing</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('people.index', no_manager=1) }}">{{ summary.totals.no_manager | num }}</a>
+    </span>
+    <span class="pos-stat-label">No manager linked</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ transitions | length | num }}</span>
+    <span class="pos-stat-label">Tenure transitions due</span>
+  </div>
+</section>
+
+{% if transitions %}
+<section class="pos-panel" aria-labelledby="pos-tenure-heading">
+  <h2 id="pos-tenure-heading" class="pos-panel-heading">Tenure transitions due as at {{ as_of | date_long }}</h2>
+  <p class="pos-muted pos-small">
+    Flagged, never applied — a level change reprices every subsequent hour. But
+    not flagging is worse: they keep billing at the junior rate and nothing says so.
+  </p>
+  <table class="pos-table pos-table-compact">
+    <thead>
+      <tr>
+        <th scope="col">Person</th><th scope="col">Now</th><th scope="col">Due to become</th>
+        <th scope="col">Since</th><th scope="col">Due on</th><th scope="col" class="pos-num">Days over</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in transitions %}
+      <tr>
+        <td>{{ person_link(row.id, row.full_name) }}</td>
+        <td>{{ row.current_level }}</td>
+        <td><strong>{{ row.next_level }}</strong></td>
+        <td>{{ row.level_start_date | date_long }}</td>
+        <td>{{ row.due_on | date_long }}</td>
+        <td class="pos-num">{{ row.days_over | num }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if unmapped_titles %}
+<div class="pos-flash pos-flash-warning" role="status">
+  <span class="pos-flash-text">
+    {{ unmapped_titles | length }} job title{{ 's' if unmapped_titles | length != 1 }}
+    in the roster have no level mapping, so those people price at nothing:
+    {% for row in unmapped_titles %}<strong>{{ row.job_title }}</strong> ({{ row.n }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    <a href="{{ url_for('people.titles') }}">Map them →</a>
+  </span>
+</div>
+{% endif %}
+
+<form class="pos-filter-bar" method="get" action="{{ url_for('people.index') }}" role="search">
+  <div class="pos-field">
+    <label for="f-q">Name, email, title or city</label>
+    <input type="search" id="f-q" name="q" value="{{ filters.search or '' }}" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="f-level">Level</label>
+    <select id="f-level" name="level_id">
+      <option value="">All levels</option>
+      {% for level in options.levels %}
+      <option value="{{ level.id }}" {% if filters.level_id == level.id %}selected{% endif %}>{{ level.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-company">Company</label>
+    <select id="f-company" name="company">
+      <option value="">All companies</option>
+      {% for name in options.companies %}
+      <option value="{{ name }}" {% if filters.company == name %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-function">Function</label>
+    <select id="f-function" name="function">
+      <option value="">All functions</option>
+      {% for name in options.functions %}
+      <option value="{{ name }}" {% if filters.function == name %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+  </div>
+</form>
+
+{% if rows %}
+<p class="pos-result-count" aria-live="polite">
+  {{ total | num }} contact{{ 's' if total != 1 }}{% if page_count > 1 %} · page {{ page }} of {{ page_count }}{% endif %}
+  <button type="button" class="pos-btn" data-pos-export="people-table">Export CSV</button>
+</p>
+
+<table class="pos-table pos-table-sortable" id="people-table" data-pos-table
+       data-pos-export-name="personalos-contacts">
+  <caption class="pos-visually-hidden">Contacts</caption>
+  <thead>
+    <tr>
+      <th scope="col">Name</th>
+      <th scope="col">Job title</th>
+      <th scope="col">Level</th>
+      <th scope="col">Company</th>
+      <th scope="col">Location</th>
+      <th scope="col">Manager</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+      <td>
+        <a href="{{ url_for('people.detail', person_id=row.id) }}">{{ row.full_name }}</a>
+        {% if row.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+        <div class="pos-muted pos-small">{{ row.email or '—' }}</div>
+      </td>
+      <td>{{ row.job_title or '—' }}</td>
+      <td>
+        {% if row.level_label %}{{ row.level_label }}
+        {% else %}<span class="pos-badge pos-badge-danger">no level</span>{% endif %}
+      </td>
+      <td class="pos-small">{{ row.company or '—' }}</td>
+      <td class="pos-small">{{ row.city or '—' }}{% if row.state_province %}, {{ row.state_province }}{% endif %}</td>
+      <td>{{ person_link(row.manager_id, row.manager_name) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ pager('people.index', page, page_count, {'q': filters.search or '', 'level_id': filters.level_id or '', 'company': filters.company or '', 'sort': sort}) }}
+
+{% else %}
+  {% if filters.search or filters.level_id or filters.company or filters.function %}
+    {% with title='No contacts match those filters',
+            body='Try clearing the search text or widening the level.',
+            action_url=url_for('people.index'), action_label='Clear filters' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% else %}
+    {% with title='No contacts yet',
+            body='Import your directory extract to get started. The importer matches columns by their header text, previews exactly what it will do, and is safe to re-run against a refreshed file.',
+            action_url=url_for('people.import_select'), action_label='Import contacts',
+            secondary_url=url_for('people.new'), secondary_label='Add one by hand' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+{% endif %}
+{% endblock %}

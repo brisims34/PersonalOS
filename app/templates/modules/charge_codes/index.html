@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import status_badge %}
+{% block title %}Charge Codes{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Charge Codes</h1>
+    <p class="pos-page-subtitle">
+      The financial reconciliation key. Time is booked against the code; project
+      and workstream are derived from it, and external reporting rolls up by it.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('projects.index') }}">
+      Add one from a project
+    </a>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Charge code status">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.total | num }}</span>
+    <span class="pos-stat-label">Codes</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('charge_codes.index', status='active') }}">{{ summary.active | num }}</a>
+    </span>
+    <span class="pos-stat-label">Active — bookable</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.inactive | num }}</span>
+    <span class="pos-stat-label">Inactive</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.closed | num }}</span>
+    <span class="pos-stat-label">Closed</span>
+  </div>
+</section>
+
+<form class="pos-filter-bar" method="get" role="search">
+  <div class="pos-field">
+    <label for="f-q">Code, name or project</label>
+    <input type="search" id="f-q" name="q" value="{{ filters.q }}" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="f-st">Status</label>
+    <select id="f-st" name="status">
+      <option value="">All</option>
+      {% for value in ['active','inactive','closed'] %}
+      <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value | title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+  </div>
+</form>
+
+{% if rows %}
+<table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-charge-codes">
+  <caption class="pos-visually-hidden">Charge codes</caption>
+  <thead>
+    <tr>
+      <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Project</th>
+      <th scope="col">Workstream</th><th scope="col">Status</th>
+      <th scope="col">Lead partner</th><th scope="col">Engagement manager</th>
+      <th scope="col" class="pos-num">Budget hours</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="{{ url_for('charge_codes.detail', code_id=row.id) }}">{{ row.code }}</a>
+          {% if row.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}</td>
+      <td>{{ row.name }}</td>
+      <td class="pos-small">
+        <a href="{{ url_for('projects.detail', project_id=row.project_id) }}">{{ row.project_name }}</a>
+      </td>
+      <td class="pos-small">{{ row.workstream_name or '—' }}</td>
+      <td>{{ status_badge(row.status) }}</td>
+      <td class="pos-small">{{ row.lead_partner_name or '—' }}
+          {% if row.partner_inherited and row.lead_partner_name %}
+          <span class="pos-badge pos-badge-neutral">inherited</span>{% endif %}</td>
+      <td class="pos-small">{{ row.engagement_manager_name or '—' }}
+          {% if row.manager_inherited and row.engagement_manager_name %}
+          <span class="pos-badge pos-badge-neutral">inherited</span>{% endif %}</td>
+      <td class="pos-num">{{ row.budget_hours | hours }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  {% with title='No charge codes yet',
+          body='A charge code is where an hour gets booked. Without one there is nothing for a timesheet import to reconcile against, and no way to report externally. Add the first from a project page.',
+          action_url=url_for('projects.index'), action_label='Go to projects' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% endif %}
+{% endblock %}

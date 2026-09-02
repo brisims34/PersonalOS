@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link, priority_badge %}
+{% block title %}Tasks{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Tasks</h1>
+    <p class="pos-page-subtitle">Everything open, and what is late. As at {{ as_of | date_long }}.</p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('tasks.new') }}" data-pos-new>+ New task</a>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Task counts">
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('tasks.index', open=1, sort='due') }}">{{ counts.overdue | num }}</a>
+    </span>
+    <span class="pos-stat-label">Overdue</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ counts.due_today | num }}</span>
+    <span class="pos-stat-label">Due today</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ counts.due_week | num }}</span>
+    <span class="pos-stat-label">Due this week</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('tasks.index', status='blocked') }}">{{ counts.blocked | num }}</a>
+    </span>
+    <span class="pos-stat-label">Blocked</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ counts.open_total | num }}</span>
+    <span class="pos-stat-label">Open in total</span>
+  </div>
+</section>
+
+<form class="pos-quick-add" method="post" action="{{ url_for('tasks.quick_add') }}">
+  <label class="pos-visually-hidden" for="qa">Quick add a task</label>
+  <input type="text" id="qa" name="title" placeholder="Quick add a task and press Enter…"
+         autocomplete="off">
+  <input type="date" name="due_date" aria-label="Due date">
+  <button type="submit" class="pos-btn pos-btn-primary">Add</button>
+</form>
+
+<form class="pos-filter-bar" method="get" role="search">
+  <div class="pos-field">
+    <label for="f-q">Title or description</label>
+    <input type="search" id="f-q" name="q" value="{{ filters.search or '' }}" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="f-st">Status</label>
+    <select id="f-st" name="status">
+      <option value="">All</option>
+      {% for value in ['open','in_progress','blocked','completed','cancelled'] %}
+      <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-pr">Priority</label>
+    <select id="f-pr" name="priority">
+      <option value="">All</option>
+      {% for value in ['high','medium','low'] %}
+      <option value="{{ value }}" {% if filters.priority == value %}selected{% endif %}>{{ value | title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-pj">Project</label>
+    <select id="f-pj" name="project_id">
+      <option value="">All projects</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}" {% if filters.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+  </div>
+</form>
+
+{% if rows %}
+<form method="post" action="{{ url_for('tasks.bulk') }}">
+  <div class="pos-bulk-bar">
+    <span class="pos-muted pos-small">
+      {{ total | num }} task{{ 's' if total != 1 }} · select rows with
+      <kbd class="pos-kbd">x</kbd>, then:
+    </span>
+    <label class="pos-visually-hidden" for="bulk-status">Set status to</label>
+    <select id="bulk-status" name="status">
+      <option value="completed">Completed</option>
+      <option value="in_progress">In progress</option>
+      <option value="blocked">Blocked</option>
+      <option value="open">Open</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <button type="submit" class="pos-btn">Apply to selected</button>
+  </div>
+
+  <table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-tasks">
+    <caption class="pos-visually-hidden">Tasks</caption>
+    <thead>
+      <tr>
+        <th scope="col"><span class="pos-visually-hidden">Select</span></th>
+        <th scope="col">Task</th><th scope="col">Project</th><th scope="col">Charge code</th>
+        <th scope="col">Assignee</th><th scope="col">Priority</th>
+        <th scope="col">Due</th><th scope="col">Status</th><th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr {% if row.status in ('open','in_progress','blocked') and row.due_date and row.due_date < as_of %}class="pos-row-overdue"{% endif %}>
+        <td><input type="checkbox" name="task_ids" value="{{ row.id }}"
+                   aria-label="Select {{ row.title }}"></td>
+        <td><a href="{{ url_for('tasks.detail', task_id=row.id) }}">{{ row.title }}</a></td>
+        <td class="pos-small">{{ row.project_name or '—' }}</td>
+        <td class="pos-small">{{ row.charge_code or '—' }}</td>
+        <td class="pos-small">{{ row.assignee_name or '—' }}</td>
+        <td>{{ priority_badge(row.priority) }}</td>
+        <td>
+          {{ row.due_date | date_long }}
+          {% if row.status in ('open','in_progress','blocked') and row.due_date and row.due_date < as_of %}
+          <span class="pos-badge pos-badge-danger">overdue</span>
+          {% endif %}
+        </td>
+        <td><span class="pos-badge pos-badge-{{ 'ok' if row.status == 'completed' else 'danger' if row.status == 'blocked' else 'warn' if row.status == 'in_progress' else 'neutral' }}">
+            {{ row.status | replace('_',' ') }}</span></td>
+        <td>
+          {% if row.status not in ('completed','cancelled') %}
+          <button type="submit" class="pos-btn"
+                  formaction="{{ url_for('tasks.complete', task_id=row.id) }}">Done</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% else %}
+  {% if filters.search or filters.status or filters.project_id %}
+    {% with title='No tasks match those filters',
+            action_url=url_for('tasks.index'), action_label='Clear filters' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% else %}
+    {% with title='No tasks yet',
+            body='A task created from a project inherits its project, workstream and charge code, so you never re-enter what the app already knows.',
+            action_url=url_for('tasks.new'), action_label='+ New task' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+{% endif %}
+{% endblock %}

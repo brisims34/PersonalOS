@@ -1,0 +1,80 @@
+{# Shared render helpers. Imported with:
+     {% from "partials/_macros.html" import person_link, pager, tabs %}
+   Kept in one file so the badge vocabulary cannot drift between modules. #}
+
+{% macro person_link(id, name, level=None) %}
+  {%- if id -%}
+    <a href="/people/{{ id }}">{{ name }}</a>
+    {%- if level %} <span class="pos-badge pos-badge-neutral">{{ level }}</span>{% endif -%}
+  {%- else -%}
+    <span class="pos-muted">—</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro status_badge(status) %}
+  {%- set tone = {'active': 'ok', 'completed': 'ok', 'pipeline': 'neutral',
+                  'planned': 'neutral', 'on_hold': 'warn', 'inactive': 'warn',
+                  'cancelled': 'danger', 'closed': 'neutral', 'departed': 'danger'} -%}
+  <span class="pos-badge pos-badge-{{ tone.get(status, 'neutral') }}">
+    {{- status | replace('_', ' ') -}}
+  </span>
+{% endmacro %}
+
+{% macro rag_badge(rag) %}
+  {%- if rag -%}
+    <span class="pos-badge pos-badge-{{ rag }}">{{ rag }}</span>
+  {%- else -%}
+    <span class="pos-badge pos-badge-neutral">not rated</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro priority_badge(priority) %}
+  {%- set tone = {'high': 'danger', 'medium': 'warn', 'low': 'neutral'} -%}
+  <span class="pos-badge pos-badge-{{ tone.get(priority, 'neutral') }}">{{ priority }}</span>
+{% endmacro %}
+
+{# Every bar carries its numeral and band word — never colour alone (P12). #}
+{% macro capacity_bar(pct, width=90) %}
+  {%- set value = pct or 0 -%}
+  {%- if value < 60 %}{% set band, word = 'bench', 'Available' %}
+  {%- elif value < 95 %}{% set band, word = 'good', 'Good' %}
+  {%- elif value <= 110 %}{% set band, word = 'full', 'Full' %}
+  {%- else %}{% set band, word = 'over', 'Over' %}{% endif -%}
+  <span class="pos-bar-row">
+    <span class="pos-bar pos-bar-{{ band }}" style="width: {{ width }}px"
+          role="img" aria-label="{{ value | round | int }} percent, {{ word }}">
+      <span class="pos-bar-fill" style="width: {{ [value, 100] | min }}%"></span>
+    </span>
+    <span class="pos-bar-value">{{ value | round | int }}%</span>
+    <span class="pos-bar-band">{{ word }}</span>
+  </span>
+{% endmacro %}
+
+{% macro pager(endpoint, page, page_count, args={}) %}
+  {% if page_count > 1 %}
+  <nav class="pos-pager" aria-label="Pagination">
+    {% if page > 1 %}
+      <a class="pos-btn" href="{{ url_for(endpoint, page=page-1, **args) }}">← Previous</a>
+    {% endif %}
+    <span class="pos-muted">Page {{ page }} of {{ page_count }}</span>
+    {% if page < page_count %}
+      <a class="pos-btn" href="{{ url_for(endpoint, page=page+1, **args) }}">Next →</a>
+    {% endif %}
+  </nav>
+  {% endif %}
+{% endmacro %}
+
+{% macro tabs(items, current, base_url) %}
+<nav class="pos-tabs" aria-label="Sections">
+  {% for key, label in items %}
+  <a class="pos-tab {% if current == key %}is-active{% endif %}"
+     href="{{ base_url }}?tab={{ key }}"
+     {% if current == key %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{# A computed figure the user can open to see the rows behind it (P3). #}
+{% macro trace(value, target) %}
+  <a class="pos-trace" href="{{ target }}">{{ value }}</a>
+{% endmacro %}

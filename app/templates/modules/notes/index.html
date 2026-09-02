@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Notes Vault{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Notes Vault</h1>
+    <p class="pos-page-subtitle">
+      Markdown files on disk are the truth. Everything below is a rebuildable
+      index — edit a file in VS Code or Obsidian and rescan to pick it up.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('notes.new') }}" data-pos-new>+ New note</a>
+    <form method="post" action="{{ url_for('notes.rescan') }}">
+      <button type="submit" class="pos-btn">Rescan vault</button>
+    </form>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Vault">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ stats.notes | num }}</span>
+    <span class="pos-stat-label">Notes indexed</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ stats.links | num }}</span>
+    <span class="pos-stat-label">Links</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('notes.unresolved') }}">{{ stats.unresolved | num }}</a>
+    </span>
+    <span class="pos-stat-label">Unresolved</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ stats.missing | num }}</span>
+    <span class="pos-stat-label">Indexed, not on disk</span>
+  </div>
+</section>
+
+<form class="pos-filter-bar" method="get" role="search">
+  <div class="pos-field">
+    <label for="f-q">Title or path</label>
+    <input type="search" id="f-q" name="q" value="{{ filters.q }}" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="f-root">Vault root</label>
+    <select id="f-root" name="root">
+      <option value="">All roots</option>
+      {% for root in roots %}
+      <option value="{{ root.root_key }}" {% if current_root and current_root.id == root.id %}selected{% endif %}>
+        {{ root.label }}{% if root.is_readonly %} (read-only){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+    <a class="pos-btn" href="{{ url_for('search.index') }}">Full-text search</a>
+  </div>
+</form>
+
+{% if tags %}
+<p class="pos-tag-cloud">
+  {% for tag, count in tags %}
+  <a class="pos-badge {% if filters.tag == tag %}pos-badge-ok{% else %}pos-badge-neutral{% endif %}"
+     href="{{ url_for('notes.index', tag=tag) }}">#{{ tag }} {{ count }}</a>
+  {% endfor %}
+</p>
+{% endif %}
+
+{% if notes %}
+<table class="pos-table pos-table-sortable" data-pos-table>
+  <caption class="pos-visually-hidden">Notes</caption>
+  <thead>
+    <tr><th scope="col">Title</th><th scope="col">Path</th><th scope="col">Root</th>
+        <th scope="col">Project</th><th scope="col">Tags</th><th scope="col">Modified</th></tr>
+  </thead>
+  <tbody>
+    {% for row in notes %}
+    <tr>
+      <td><a href="{{ url_for('notes.detail', note_id=row.id) }}">{{ row.title }}</a></td>
+      <td class="pos-small"><code>{{ row.rel_path }}</code></td>
+      <td class="pos-small">{{ row.root_label }}</td>
+      <td class="pos-small">{{ row.project_name or '—' }}</td>
+      <td class="pos-small">{{ row.tags or '—' }}</td>
+      <td class="pos-small">{{ row.mtime | datetime_long }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  {% with title='Nothing indexed yet',
+          body='Notes live as .md files under projects/, docs/ and template_library/. Press Rescan vault to index whatever is already on disk, or create the first note.',
+          action_url=url_for('notes.new'), action_label='+ New note' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% endif %}
+{% endblock %}

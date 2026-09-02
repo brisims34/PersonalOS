@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Job titles{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Job title → level</h1>
+    <p class="pos-page-subtitle">
+      The directory gives job titles; rates hang off <strong>level</strong>. Without
+      this mapping every new title HR invents would silently price at nothing.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn" href="{{ url_for('people.index') }}">Back to contacts</a>
+  </div>
+</header>
+
+{% if unmapped %}
+<div class="pos-flash pos-flash-warning" role="status">
+  <span class="pos-flash-text">
+    These titles appear in the roster with no mapping:
+    {% for row in unmapped %}<strong>{{ row.job_title }}</strong> ({{ row.n }} {{ 'person' if row.n == 1 else 'people' }}){% if not loop.last %}, {% endif %}{% endfor %}.
+    Add a row for each in <code>job_title_map</code>, or set those people's levels by hand.
+  </span>
+</div>
+{% endif %}
+
+<div class="pos-flash pos-flash-info" role="status">
+  <span class="pos-flash-text">
+    Four of these are defaults awaiting your confirmation — see
+    <code>docs/DECISION_LOG.md</code> §2.1. <strong>Assistant Manager</strong>,
+    <strong>Consultant</strong> and <strong>Contractor</strong> have no rate card row
+    of their own, and the two Specialist titles may carry their own rates.
+  </span>
+</div>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Mappings</h2>
+  <table class="pos-table">
+    <caption class="pos-visually-hidden">Job title to level mappings</caption>
+    <thead>
+      <tr>
+        <th scope="col">Job title</th>
+        <th scope="col" class="pos-num">People</th>
+        <th scope="col">Bills at level</th>
+        <th scope="col">Function</th>
+        <th scope="col">Specialist</th>
+        <th scope="col"><span class="pos-visually-hidden">Save</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in mappings %}
+      <tr>
+        <form method="post" action="{{ url_for('people.save_title', map_id=row.id) }}" id="tm{{ row.id }}"></form>
+        <td><strong>{{ row.job_title }}</strong></td>
+        <td class="pos-num">
+          {% if row.people_count %}
+          <a href="{{ url_for('people.index', q=row.job_title) }}">{{ row.people_count | num }}</a>
+          {% else %}<span class="pos-muted">0</span>{% endif %}
+        </td>
+        <td>
+          <label class="pos-visually-hidden" for="lvl{{ row.id }}">Level for {{ row.job_title }}</label>
+          <select id="lvl{{ row.id }}" name="level_id" form="tm{{ row.id }}">
+            {% for level in levels %}
+            <option value="{{ level.id }}" {% if level.id == row.level_id %}selected{% endif %}>{{ level.label }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <label class="pos-visually-hidden" for="fn{{ row.id }}">Function for {{ row.job_title }}</label>
+          <select id="fn{{ row.id }}" name="function" form="tm{{ row.id }}">
+            <option value="">—</option>
+            {% for option in functions %}
+            <option value="{{ option.value }}" {% if option.value == row.function %}selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <label class="pos-visually-hidden" for="sp{{ row.id }}">Specialist</label>
+          <input type="checkbox" id="sp{{ row.id }}" name="is_specialist" value="1"
+                 form="tm{{ row.id }}" {% if row.is_specialist %}checked{% endif %}>
+        </td>
+        <td><button type="submit" class="pos-btn" form="tm{{ row.id }}">Save</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="pos-muted pos-small pos-mt-3">
+    Saving re-levels every contact holding that title. Anything already priced under
+    the old mapping needs re-pricing — that is a deliberate action, not a side effect.
+  </p>
+</section>
+{% endblock %}

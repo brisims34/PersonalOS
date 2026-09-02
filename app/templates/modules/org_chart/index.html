@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link %}
+{% block title %}Org Chart{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Org Chart</h1>
+    <p class="pos-page-subtitle">
+      Built from <code>manager_person_id</code> — the administrative reporting line
+      from the directory, kept separate from the counselee relationship.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <form method="post" action="{{ url_for('people.resolve_managers') }}">
+      <button type="submit" class="pos-btn pos-btn-primary">Resolve manager links</button>
+    </form>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Chart coverage">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.totals.total | num }}</span>
+    <span class="pos-stat-label">People</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.totals.no_manager | num }}</span>
+    <span class="pos-stat-label">No manager linked</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ spans | length | num }}</span>
+    <span class="pos-stat-label">People with reports</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ summary.totals.chain_pulled | num }}</span>
+    <span class="pos-stat-label">Pulled in to complete a chain</span>
+  </div>
+</section>
+
+{% if summary.totals.no_manager == summary.totals.total and summary.totals.total %}
+<div class="pos-flash pos-flash-warning" role="status">
+  <span class="pos-flash-text">
+    No reporting lines are set. The seed spreadsheet's <strong>Manager Email</strong>
+    column is empty — GAL enrichment is what fills it, and that needs Outlook on the
+    Windows side. Until then this page has nothing to draw.
+  </span>
+</div>
+{% endif %}
+
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Span of control</h2>
+    {% if spans %}
+    <table class="pos-table pos-table-compact pos-table-sortable" data-pos-table>
+      <thead><tr><th scope="col">Manager</th><th scope="col">Level</th>
+                 <th scope="col" class="pos-num">Direct reports</th></tr></thead>
+      <tbody>
+        {% for row in spans %}
+        <tr>
+          <td><a href="{{ url_for('org_chart.person', person_id=row.id) }}">{{ row.full_name }}</a></td>
+          <td class="pos-small">{{ row.level_label or row.job_title or '—' }}</td>
+          <td class="pos-num">{{ row.direct_reports | num }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">Nobody has a direct report recorded yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Tops of the tree</h2>
+    <p class="pos-muted pos-small">
+      People with no manager. Some are genuinely at the top; the rest are gaps.
+    </p>
+    {% if roots %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Person</th><th scope="col" class="pos-num">Reports</th>
+                 <th scope="col">Directory says</th></tr></thead>
+      <tbody>
+        {% for row in roots[:40] %}
+        <tr>
+          <td><a href="{{ url_for('org_chart.person', person_id=row.id) }}">{{ row.full_name }}</a>
+              <div class="pos-muted pos-small">{{ row.job_title or '' }}</div></td>
+          <td class="pos-num">{{ row.report_count | num }}</td>
+          <td class="pos-small">{{ row.manager_email or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if roots | length > 40 %}
+    <p class="pos-muted pos-small">Showing 40 of {{ roots | length }}.</p>
+    {% endif %}
+    {% else %}
+    <p class="pos-muted">Every person has a manager. That is unusual and good.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

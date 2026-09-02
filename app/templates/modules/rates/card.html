@@ -1,0 +1,109 @@
+{% extends "partials/_object_page.html" %}
+{% block title %}{{ card.name }}{% endblock %}
+
+{% block identity_name %}{{ card.name }}{% endblock %}
+
+{% block identity_badges %}
+<span class="pos-badge pos-badge-neutral">{{ card.scope }}</span>
+{% if card.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}
+{% if card.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+{{ card.company or 'Any company' }}
+{% if card.project_name %}· {{ card.project_name }}{% endif %}
+· {{ entries | length }} rate{{ 's' if entries | length != 1 }} recorded
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary" href="#add-rates" data-pos-edit>Add a year of rates</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('rates.index') }}">All cards</a>
+{% endblock %}
+
+{% block more_actions %}
+<form method="post" action="{{ url_for('rates.archive_card', card_id=card.id) }}"
+      onsubmit="return confirm('{{ 'Restore' if card.archived_at else 'Archive' }} this card? Rates already resolved onto rows are untouched.');">
+  <button type="submit" class="pos-btn {% if not card.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if card.archived_at else 'Archive' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block body %}
+{% if years %}
+  {% for effective_from, rows in years %}
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Effective from {{ effective_from | date_long }}</h2>
+    <table class="pos-table pos-table-compact">
+      <thead>
+        <tr><th scope="col">Level</th><th scope="col" class="pos-num">Bill rate</th>
+            <th scope="col" class="pos-num">Cost rate</th>
+            <th scope="col" class="pos-num">Margin at 100% ERP</th>
+            <th scope="col">Until</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows | sort(attribute='sort_order', reverse=true) %}
+        <tr>
+          <td>{{ row.level_label }}</td>
+          <td class="pos-num">{{ row.bill_rate | money }}</td>
+          <td class="pos-num">{{ row.cost_rate | money }}</td>
+          <td class="pos-num">
+            {% if row.bill_rate and row.cost_rate %}
+              {{ ((row.bill_rate - row.cost_rate) / row.bill_rate * 100) | pct(1) }}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ row.effective_to | date_long if row.effective_to else 'open' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endfor %}
+{% else %}
+  {% with title='No rates on this card yet',
+          body='A card with no rates prices everybody at nothing. Add a bill and cost rate for each level below, effective from the start of the fiscal year.' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% endif %}
+
+<section class="pos-panel" id="add-rates">
+  <h2 class="pos-panel-heading">Add or amend a year</h2>
+  <form method="post" action="{{ url_for('rates.save_entries', card_id=card.id) }}">
+    <div class="pos-field pos-mb-3">
+      <label for="ef">Effective from</label>
+      <input type="date" id="ef" name="effective_from" required>
+    </div>
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Level</th><th scope="col" class="pos-num">Bill rate</th>
+                 <th scope="col" class="pos-num">Cost rate</th></tr></thead>
+      <tbody>
+        {% for level in levels | sort(attribute='sort_order', reverse=true) %}
+        <tr>
+          <td>{{ level.label }}{% if not level.is_on_ladder %}
+              <span class="pos-badge pos-badge-neutral">off ladder</span>{% endif %}</td>
+          <td class="pos-num">
+            <label class="pos-visually-hidden" for="b{{ level.id }}">Bill rate for {{ level.label }}</label>
+            <input type="number" step="0.01" min="0" id="b{{ level.id }}" name="bill_{{ level.id }}">
+          </td>
+          <td class="pos-num">
+            <label class="pos-visually-hidden" for="c{{ level.id }}">Cost rate for {{ level.label }}</label>
+            <input type="number" step="0.01" min="0" id="c{{ level.id }}" name="cost_{{ level.id }}">
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pos-page-actions pos-mt-3">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save rates</button>
+    </div>
+  </form>
+  <p class="pos-muted pos-small pos-mt-3">
+    Leave a level blank to skip it. Saving does <strong>not</strong> restate anything
+    already priced — time entries and budget lines keep the rate they were written
+    with, so a card correction never silently rewrites booked history.
+  </p>
+</section>
+{% endblock %}

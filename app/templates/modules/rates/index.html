@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link %}
+{% block title %}Budgets &amp; Rates{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Budgets &amp; Rates</h1>
+    <p class="pos-page-subtitle">
+      Rate cards carry standard rates by level, by year. ERP brings the bill rate
+      down; a negotiated card replaces it outright. Cost rates are never touched by ERP.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn" href="{{ url_for('rates.calculator', as_of=as_of) }}">Rate calculator</a>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Rate coverage">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ cards | length | num }}</span>
+    <span class="pos-stat-label">Rate cards</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ levels | length | num }}</span>
+    <span class="pos-stat-label">Levels on the ladder</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ unpriced | length | num }}</span>
+    <span class="pos-stat-label">People who price at nothing</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ transitions | length | num }}</span>
+    <span class="pos-stat-label">Tenure transitions due</span>
+  </div>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Rate cards</h2>
+  {% if cards %}
+  <table class="pos-table">
+    <thead>
+      <tr><th scope="col">Card</th><th scope="col">Scope</th><th scope="col">Company</th>
+          <th scope="col">Project</th><th scope="col" class="pos-num">Rates set</th>
+          <th scope="col">Default</th></tr>
+    </thead>
+    <tbody>
+      {% for row in cards %}
+      <tr>
+        <td><a href="{{ url_for('rates.card', card_id=row.id) }}">{{ row.name }}</a></td>
+        <td><span class="pos-badge pos-badge-neutral">{{ row.scope }}</span></td>
+        <td class="pos-small">{{ row.company or 'any' }}</td>
+        <td class="pos-small">{{ row.project_name or '—' }}</td>
+        <td class="pos-num">
+          {% if row.entry_count %}{{ row.entry_count | num }}
+          {% else %}<span class="pos-badge pos-badge-danger">none</span>{% endif %}
+        </td>
+        <td>{% if row.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No rate cards yet',
+            body='A rate card holds a bill and cost rate for each of the nine levels, effective from a date. Rates are entered here rather than shipped in the code, because they are confidential and they change every fiscal year.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('rates.create_card') }}" class="pos-filter-bar pos-mt-3">
+    <div class="pos-field">
+      <label for="cn">Card name</label>
+      <input type="text" id="cn" name="name" required placeholder="e.g. US Standard FY26">
+    </div>
+    <div class="pos-field">
+      <label for="cs">Scope</label>
+      <select id="cs" name="scope">
+        <option value="standard">Standard</option>
+        <option value="negotiated">Negotiated — client agreed</option>
+        <option value="offshore">Offshore</option>
+        <option value="internal">Internal</option>
+      </select>
+    </div>
+    <div class="pos-field">
+      <label for="cc">Company</label>
+      <input type="text" id="cc" name="company" list="rc-companies"
+             placeholder="blank = any company">
+      <datalist id="rc-companies">
+        <option value="KPMG United States of America">
+        <option value="KPMG Global Services Private Limited">
+      </datalist>
+    </div>
+    <div class="pos-field">
+      <label for="cd">Default for that company</label>
+      <select id="cd" name="is_default"><option value="0">No</option><option value="1">Yes</option></select>
+    </div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Create card</button>
+    </div>
+  </form>
+  <p class="pos-muted pos-small">
+    Company scopes the card because offshore cost rates differ from US rates by a
+    large multiple. Mis-scoping understates cost on every blended engagement.
+  </p>
+</section>
+
+{% if transitions %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Tenure transitions due as at {{ as_of | date_long }}</h2>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Person</th><th scope="col">Now</th><th scope="col">Becomes</th>
+               <th scope="col">Due on</th><th scope="col" class="pos-num">Days over</th></tr></thead>
+    <tbody>
+      {% for row in transitions %}
+      <tr>
+        <td>{{ person_link(row.id, row.full_name) }}</td>
+        <td>{{ row.current_level }}</td>
+        <td><strong>{{ row.next_level }}</strong></td>
+        <td>{{ row.due_on | date_long }}</td>
+        <td class="pos-num">{{ row.days_over | num }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="pos-muted pos-small">
+    Never applied automatically — a level change reprices every subsequent hour.
+    Record it on the person's Level &amp; rates tab.
+  </p>
+</section>
+{% endif %}
+
+{% if unpriced %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Unpriced people ({{ unpriced | length }})</h2>
+  <p class="pos-muted pos-small">
+    These resolve to nothing on {{ as_of | date_long }} — not zero. Either no level
+    is set, or no rate card covers their level on that date.
+  </p>
+  <table class="pos-table pos-table-compact pos-table-sortable" data-pos-table>
+    <thead><tr><th scope="col">Person</th><th scope="col">Job title</th>
+               <th scope="col">Level</th><th scope="col">Company</th></tr></thead>
+    <tbody>
+      {% for row in unpriced[:100] %}
+      <tr>
+        <td>{{ person_link(row.id, row.full_name) }}</td>
+        <td class="pos-small">{{ row.job_title or '—' }}</td>
+        <td>{% if row.level_label %}{{ row.level_label }}
+            {% else %}<span class="pos-badge pos-badge-danger">no level</span>{% endif %}</td>
+        <td class="pos-small">{{ row.company or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if unpriced | length > 100 %}
+  <p class="pos-muted pos-small">Showing 100 of {{ unpriced | length }}.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Editing {{ note.title }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">{{ note.title }}</h1>
+    <p class="pos-page-subtitle">
+      <code>{{ note.rel_path }}</code> in {{ note.root_label }}. Saving writes the
+      file first, then re-indexes it.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('notes.save', note_id=note.id) }}" id="pos-note-form">
+  {# The hash of what was on disk when this page loaded. If the file changed
+     underneath — an edit in VS Code, say — the save is refused rather than
+     silently clobbering it. #}
+  <input type="hidden" name="content_hash" value="{{ content_hash }}">
+
+  <div class="pos-editor">
+    <div class="pos-editor-pane">
+      <label class="pos-panel-heading" for="body">Markdown</label>
+      <textarea id="body" name="body" class="pos-editor-input" spellcheck="true"
+                rows="32">{{ text }}</textarea>
+    </div>
+    <div class="pos-editor-pane">
+      <span class="pos-panel-heading">Preview</span>
+      <div id="pos-preview" class="pos-note-body pos-editor-preview" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save to disk</button>
+    <a class="pos-btn" href="{{ url_for('notes.detail', note_id=note.id) }}">Cancel</a>
+  </div>
+</form>
+
+<section class="pos-panel pos-mt-3">
+  <h2 class="pos-panel-heading">Link grammar</h2>
+  <p class="pos-muted pos-small">
+    <code>[[note-name]]</code> · <code>[[folder/note|alias]]</code> ·
+    <code>[[project:acme-sell-side]]</code> · <code>[[person:jane.doe@kpmg.com]]</code> ·
+    <code>[[charge:ACME-2026-01]]</code> · <code>[[task:412]]</code> ·
+    <code>[[workstream:Data Migration]]</code>. Typed links are what make a note
+    show up in the backlinks panel of the record it mentions.
+  </p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/editor.js') }}" defer></script>
+{% endblock %}

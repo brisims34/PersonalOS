@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link, status_badge, rag_badge, priority_badge %}
+{% block title %}Projects{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Projects &amp; Workstreams</h1>
+    <p class="pos-page-subtitle">
+      Client engagements, internal initiatives, innovation work and training are
+      all projects. The portfolio is what separates them.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('projects.new') }}" data-pos-new>+ New project</a>
+  </div>
+</header>
+
+<section class="pos-stat-strip" aria-label="Portfolios">
+  {% for pf in portfolios %}
+  <div class="pos-stat">
+    <span class="pos-stat-value">
+      <a class="pos-trace" href="{{ url_for('projects.index', portfolio_id=pf.id) }}">{{ pf.active_count | num }}</a>
+      <span class="pos-stat-of">/{{ pf.project_count }}</span>
+    </span>
+    <span class="pos-stat-label">{{ pf.name }} — active</span>
+  </div>
+  {% endfor %}
+</section>
+
+<form class="pos-filter-bar" method="get" action="{{ url_for('projects.index') }}" role="search">
+  <div class="pos-field">
+    <label for="f-q">Name, client or code</label>
+    <input type="search" id="f-q" name="q" value="{{ filters.search or '' }}" autocomplete="off">
+  </div>
+  <div class="pos-field">
+    <label for="f-pf">Portfolio</label>
+    <select id="f-pf" name="portfolio_id">
+      <option value="">All portfolios</option>
+      {% for pf in portfolios %}
+      <option value="{{ pf.id }}" {% if filters.portfolio_id == pf.id %}selected{% endif %}>{{ pf.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-st">Status</label>
+    <select id="f-st" name="status">
+      <option value="">All statuses</option>
+      {% for value in ['pipeline','active','on_hold','completed','cancelled'] %}
+      <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field">
+    <label for="f-ty">Type</label>
+    <select id="f-ty" name="project_type">
+      <option value="">All types</option>
+      {% for option in project_types %}
+      <option value="{{ option.value }}" {% if filters.project_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pos-field pos-field-actions">
+    <button type="submit" class="pos-btn">Filter</button>
+  </div>
+</form>
+
+{% if rows %}
+<p class="pos-result-count" aria-live="polite">{{ total | num }} project{{ 's' if total != 1 }}</p>
+<table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-projects">
+  <caption class="pos-visually-hidden">Projects</caption>
+  <thead>
+    <tr>
+      <th scope="col">Project</th><th scope="col">Portfolio</th><th scope="col">Type</th>
+      <th scope="col">Status</th><th scope="col">RAG</th><th scope="col">Priority</th>
+      <th scope="col">Forecast end</th>
+      <th scope="col" class="pos-num">Workstreams</th>
+      <th scope="col" class="pos-num">Active codes</th>
+      <th scope="col">Lead partner</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+      <td>
+        <a href="{{ url_for('projects.detail', project_id=row.id) }}">{{ row.name }}</a>
+        {% if row.client_org %}<div class="pos-muted pos-small">{{ row.client_org }}</div>{% endif %}
+      </td>
+      <td class="pos-small">{{ row.portfolio_name }}</td>
+      <td class="pos-small">{{ row.project_type or '—' }}</td>
+      <td>{{ status_badge(row.status) }}</td>
+      <td>{{ rag_badge(row.rag_status) }}</td>
+      <td>{{ priority_badge(row.priority) }}</td>
+      <td>{{ row.forecast_end | date_long }}</td>
+      <td class="pos-num">{{ row.workstream_count | num }}</td>
+      <td class="pos-num">
+        {% if row.active_code_count %}{{ row.active_code_count | num }}
+        {% else %}<span class="pos-badge pos-badge-warn">none</span>{% endif %}
+      </td>
+      <td class="pos-small">{{ row.lead_partner_name or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  {% if filters.search or filters.portfolio_id or filters.status %}
+    {% with title='No projects match those filters',
+            action_url=url_for('projects.index'), action_label='Clear filters' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% else %}
+    {% with title='No projects yet',
+            body='A project gets a folder on disk under its portfolio, one or more charge codes to book time against, and workstreams to break the work into parallel tracks.',
+            action_url=url_for('projects.new'), action_label='+ New project',
+            secondary_url=url_for('portfolios.index'), secondary_label='Review portfolios' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+{% endif %}
+{% endblock %}

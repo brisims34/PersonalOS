@@ -1,0 +1,87 @@
+{#
+  The object grammar (UI_DESIGN_SYSTEM.md §2). Every entity page extends this:
+
+      {% extends "partials/_object_page.html" %}
+      {% block identity_name %}{{ project.name }}{% endblock %}
+      {% block primary_action %}<a class="pos-btn pos-btn-primary" …>Assign team</a>{% endblock %}
+      {% block body %} … {% endblock %}
+
+  Five bands, always in this order:
+    ① identity header  ② action bar  ③ tabbed body  ④ links  ⑤ activity trail
+
+  A page that cannot name a primary action has a design problem (P1), so the
+  default renders a visible marker rather than nothing — the omission is meant
+  to be impossible to miss during review.
+#}
+{% extends "base.html" %}
+
+{% block content %}
+<article class="pos-object">
+
+  <header class="pos-object-identity">
+    <div class="pos-identity-main">
+      <h1 class="pos-object-name">{% block identity_name %}Untitled{% endblock %}</h1>
+      <div class="pos-object-badges">{% block identity_badges %}{% endblock %}</div>
+    </div>
+    <p class="pos-object-subtitle">{% block identity_subtitle %}{% endblock %}</p>
+  </header>
+
+  <div class="pos-action-bar">
+    <div class="pos-action-primary">
+      {% block primary_action %}
+      <span class="pos-missing-primary" role="note">
+        This page has no primary action — see UI_DESIGN_SYSTEM.md §2
+      </span>
+      {% endblock %}
+    </div>
+    <div class="pos-action-secondary">{% block secondary_actions %}{% endblock %}</div>
+    <div class="pos-action-more">
+      {% block more_actions %}{% endblock %}
+      <span class="pos-kbd-hint"><kbd class="pos-kbd">Ctrl</kbd><kbd class="pos-kbd">K</kbd></span>
+    </div>
+  </div>
+
+  {% block tabs %}{% endblock %}
+
+  <section class="pos-object-body">
+    {% block body %}{% endblock %}
+  </section>
+
+  {% block links_panel %}
+  {% if related_records is defined and related_records %}
+  <section class="pos-panel" aria-labelledby="pos-links-heading">
+    <h2 id="pos-links-heading" class="pos-panel-heading">Linked records</h2>
+    <ul class="pos-link-list">
+      {% for item in related_records %}
+      <li>
+        <span class="pos-badge pos-badge-neutral">{{ item.type | replace('_', ' ') | title }}</span>
+        <span class="pos-link-label">{{ item.label or item.entity_id }}</span>
+        <span class="pos-muted pos-small">{{ item.direction }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% endblock %}
+
+  {% block activity_trail %}
+  {% if trail is defined and trail %}
+  <section class="pos-panel" aria-labelledby="pos-trail-heading">
+    <h2 id="pos-trail-heading" class="pos-panel-heading">Activity</h2>
+    <ol class="pos-trail">
+      {% for entry in trail %}
+      <li class="pos-trail-item">
+        <span class="pos-badge pos-badge-{{ entry.action }}">{{ entry.action }}</span>
+        <span class="pos-trail-summary">{{ entry.summary }}</span>
+        <time class="pos-muted pos-small" datetime="{{ entry.created_at }}">
+          {{ entry.created_at | ago }}
+        </time>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+  {% endblock %}
+
+</article>
+{% endblock %}

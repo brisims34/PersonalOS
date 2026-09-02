@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' + person.full_name if person else 'New contact' }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">{{ 'Edit ' + person.full_name if person else 'New contact' }}</h1>
+    <p class="pos-page-subtitle">
+      Level drives rates. If you leave it blank the job title mapping fills it in
+      on the next import; until then this person prices at nothing.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('people.save') }}">
+  {% if person %}<input type="hidden" name="person_id" value="{{ person.id }}">{% endif %}
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Identity</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="first_name">First name</label>
+        <input type="text" id="first_name" name="first_name" value="{{ person.first_name if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="last_name">Last name <span aria-hidden="true">*</span></label>
+        <input type="text" id="last_name" name="last_name" required
+               value="{{ person.last_name if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="preferred_name">Preferred name</label>
+        <input type="text" id="preferred_name" name="preferred_name"
+               value="{{ person.preferred_name if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" value="{{ person.email if person else '' }}">
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Role and level</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="job_title">Job title</label>
+        <input type="text" id="job_title" name="job_title" value="{{ person.job_title if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="level_id">Level — what they bill at</label>
+        <select id="level_id" name="level_id">
+          <option value="">Not set</option>
+          {% for level in levels %}
+          <option value="{{ level.id }}" {% if person and person.level_id == level.id %}selected{% endif %}>{{ level.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="level_start_date">In this level since</label>
+        <input type="date" id="level_start_date" name="level_start_date"
+               value="{{ person.level_start_date if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="function">Function</label>
+        <input type="text" id="function" name="function" list="functions"
+               value="{{ person.function if person else '' }}">
+        <datalist id="functions">
+          <option value="Advisory"><option value="Audit"><option value="Analytics">
+        </datalist>
+      </div>
+      <div class="pos-field">
+        <label for="company">Company</label>
+        <input type="text" id="company" name="company" list="companies"
+               value="{{ person.company if person else '' }}">
+        <datalist id="companies">
+          {% for name in companies %}<option value="{{ name }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="pos-field">
+        <label for="department">Department</label>
+        <input type="text" id="department" name="department" value="{{ person.department if person else '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="relationship_type">Relationship</label>
+        <select id="relationship_type" name="relationship_type">
+          {% for value in ['colleague','self','counselee','direct_report','client','vendor','stakeholder','mentor','other'] %}
+          <option value="{{ value }}" {% if person and person.relationship_type == value %}selected{% endif %}>
+            {{ value | replace('_', ' ') | title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% for value in ['active','inactive','departed'] %}
+          <option value="{{ value }}" {% if person and person.status == value %}selected{% endif %}>{{ value | title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Contact and reporting</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="business_phone">Business phone</label>
+        <input type="text" id="business_phone" name="business_phone" value="{{ person.business_phone if person else '' }}"></div>
+      <div class="pos-field"><label for="mobile_phone">Mobile</label>
+        <input type="text" id="mobile_phone" name="mobile_phone" value="{{ person.mobile_phone if person else '' }}"></div>
+      <div class="pos-field"><label for="city">City</label>
+        <input type="text" id="city" name="city" value="{{ person.city if person else '' }}"></div>
+      <div class="pos-field"><label for="state_province">State</label>
+        <input type="text" id="state_province" name="state_province" value="{{ person.state_province if person else '' }}"></div>
+      <div class="pos-field"><label for="manager_email">Manager email</label>
+        <input type="email" id="manager_email" name="manager_email" value="{{ person.manager_email if person else '' }}"></div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Your notes</h2>
+    <p class="pos-muted pos-small">These three fields are never overwritten by an import.</p>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes" size="60" value="{{ person.notes if person else '' }}"></div>
+      <div class="pos-field"><label for="strengths">Strengths</label>
+        <input type="text" id="strengths" name="strengths" size="40" value="{{ person.strengths if person else '' }}"></div>
+      <div class="pos-field"><label for="development_areas">Development areas</label>
+        <input type="text" id="development_areas" name="development_areas" size="40"
+               value="{{ person.development_areas if person else '' }}"></div>
+    </div>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>
+      {{ 'Save changes' if person else 'Add contact' }}
+    </button>
+    <a class="pos-btn" href="{{ url_for('people.detail', person_id=person.id) if person else url_for('people.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

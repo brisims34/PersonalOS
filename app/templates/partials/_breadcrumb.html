@@ -1,0 +1,18 @@
+{# Views pass `crumbs` as a list of ('Label', '/url') pairs or bare strings:
+     render_template(..., crumbs=[('Work', '/projects'), 'Acme Sell Side'])
+   The last crumb is the current page and is never a link. #}
+{% set trail = breadcrumbs(crumbs | default([], true)) %}
+<nav class="pos-breadcrumb" aria-label="Breadcrumb">
+  <ol>
+    <li><a href="/">Home</a></li>
+    {% for crumb in trail %}
+    <li{% if loop.last %} aria-current="page"{% endif %}>
+      {% if crumb.url and not loop.last %}
+        <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+      {% else %}
+        <span>{{ crumb.label }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</nav>

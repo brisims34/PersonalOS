@@ -1,0 +1,68 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import status_badge, rag_badge %}
+{% block title %}{{ portfolio.name }}{% endblock %}
+
+{% block identity_name %}{{ portfolio.name }}{% endblock %}
+{% block identity_badges %}
+<span class="pos-badge pos-badge-neutral">{{ portfolio.portfolio_kind }}</span>
+{% endblock %}
+{% block identity_subtitle %}
+{{ projects | length }} project{{ 's' if projects | length != 1 }}
+· folder <code>projects/{{ portfolio.folder_slug }}/</code>
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary" href="{{ url_for('projects.new') }}" data-pos-new>+ New project</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('projects.index', portfolio_id=portfolio.id) }}">Filter projects</a>
+{% endblock %}
+
+{% block body %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Projects</h2>
+  {% if projects %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Status</th>
+               <th scope="col">RAG</th><th scope="col">Forecast end</th></tr></thead>
+    <tbody>
+      {% for row in projects %}
+      <tr>
+        <td><a href="{{ url_for('projects.detail', project_id=row.id) }}">{{ row.name }}</a></td>
+        <td class="pos-small">{{ row.client_org or '—' }}</td>
+        <td>{{ status_badge(row.status) }}</td>
+        <td>{{ rag_badge(row.rag_status) }}</td>
+        <td>{{ row.forecast_end | date_long }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No projects in this portfolio',
+            action_url=url_for('projects.new'), action_label='+ New project' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Edit</h2>
+  <form method="post" action="{{ url_for('portfolios.save') }}" class="pos-filter-bar">
+    <input type="hidden" name="portfolio_id" value="{{ portfolio.id }}">
+    <div class="pos-field"><label for="en">Name</label>
+      <input type="text" id="en" name="name" value="{{ portfolio.name }}" required></div>
+    <div class="pos-field"><label for="ed">Description</label>
+      <input type="text" id="ed" name="description" size="40" value="{{ portfolio.description or '' }}"></div>
+    <div class="pos-field"><label for="es">Sort order</label>
+      <input type="number" id="es" name="sort_order" value="{{ portfolio.sort_order }}" size="4"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save</button>
+    </div>
+  </form>
+  <p class="pos-muted pos-small">
+    The folder slug is not editable here — renaming it would orphan every project
+    folder underneath it.
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Import preview{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Import preview</h1>
+    <p class="pos-page-subtitle">
+      Stage 2 of 3 — this is exactly what committing will do.
+      <strong>Nothing has been written.</strong>
+    </p>
+  </div>
+</header>
+
+<nav class="pos-wizard" aria-label="Import progress">
+  <span class="pos-wizard-step is-done">1 · Select</span>
+  <span class="pos-wizard-step is-current">2 · Preview</span>
+  <span class="pos-wizard-step">3 · Commit</span>
+</nav>
+
+{% if plan.already_imported %}
+<div class="pos-flash pos-flash-warning" role="status">
+  <span class="pos-flash-text">
+    <strong>{{ plan.file_name }} has already been loaded</strong>
+    on {{ plan.prior.imported_at | date_long }} —
+    {{ plan.prior.rows_imported | num }} row{{ 's' if plan.prior.rows_imported != 1 }} written.
+    This is a one-time load: committing again writes nothing, and the database
+    would refuse it anyway. To load a genuinely refreshed extract, export it
+    again — a changed file has a different content hash.
+  </span>
+</div>
+{% endif %}
+
+<section class="pos-stat-strip" aria-label="What will happen">
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ plan.counts.create | num }}</span>
+    <span class="pos-stat-label">To be added</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ plan.counts.update | num }}</span>
+    <span class="pos-stat-label">To be updated</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ plan.counts.unchanged | num }}</span>
+    <span class="pos-stat-label">Already correct</span>
+  </div>
+  <div class="pos-stat">
+    <span class="pos-stat-value">{{ plan.counts.problems | num }}</span>
+    <span class="pos-stat-label">Rows skipped</span>
+  </div>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">File</h2>
+  <table class="pos-table pos-table-compact">
+    <tbody>
+      <tr><th scope="row">Path</th><td class="pos-small">{{ plan.path }}</td></tr>
+      <tr><th scope="row">Sheet</th><td>{{ plan.report.sheet }}, header on row {{ plan.report.header_row }}</td></tr>
+      <tr><th scope="row">Rows read</th><td class="pos-num">{{ plan.report.row_count | num }}</td></tr>
+      <tr><th scope="row">Columns matched</th><td class="pos-small">{{ plan.report.matched | join(' · ') }}</td></tr>
+      {% if plan.report.unmatched_fields %}
+      <tr><th scope="row">Not found</th>
+          <td class="pos-small">{{ plan.report.unmatched_fields | join(' · ') }} — these import as blank</td></tr>
+      {% endif %}
+      {% if plan.report.ignored_columns %}
+      <tr><th scope="row">Ignored columns</th>
+          <td class="pos-small">{{ plan.report.ignored_columns | join(' · ') }}</td></tr>
+      {% endif %}
+      <tr><th scope="row">Content hash</th><td class="pos-small"><code>{{ plan.sha256[:16] }}…</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+{% if plan.report.missing_required %}
+<div class="pos-flash pos-flash-error" role="status">
+  <span class="pos-flash-text">
+    Required column{{ 's' if plan.report.missing_required | length != 1 }} missing:
+    <strong>{{ plan.report.missing_required | join(', ') }}</strong>. Fix the file and try again.
+  </span>
+</div>
+{% endif %}
+
+{% if plan.unmapped_titles %}
+<div class="pos-flash pos-flash-warning" role="status">
+  <span class="pos-flash-text">
+    {{ plan.unmapped_titles | length }} job title{{ 's' if plan.unmapped_titles | length != 1 }}
+    in this file have no level mapping, so those people will price at nothing until you map them:
+    <strong>{{ plan.unmapped_titles | join(', ') }}</strong>.
+  </span>
+</div>
+{% endif %}
+
+{% if plan.problems %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Rows that will be skipped ({{ plan.problems | length }})</h2>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col" class="pos-num">Line</th><th scope="col">Problem</th>
+               <th scope="col">Row</th></tr></thead>
+    <tbody>
+      {% for row in plan.problems[:50] %}
+      <tr><td class="pos-num">{{ row.line }}</td><td>{{ row.issue }}</td>
+          <td class="pos-small">{{ row.detail }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if plan.problems | length > 50 %}
+  <p class="pos-muted pos-small">Showing the first 50 of {{ plan.problems | length }}.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if plan.create %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Will be added ({{ plan.create | length }})</h2>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Job title</th>
+               <th scope="col">Company</th><th scope="col">Location</th></tr></thead>
+    <tbody>
+      {% for row in plan.create[:25] %}
+      <tr>
+        <td>{{ row.first_name }} {{ row.last_name }}</td>
+        <td class="pos-small">{{ row.email }}</td>
+        <td class="pos-small">{{ row.job_title or '—' }}</td>
+        <td class="pos-small">{{ row.company or '—' }}</td>
+        <td class="pos-small">{{ row.city or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if plan.create | length > 25 %}
+  <p class="pos-muted pos-small">Showing the first 25 of {{ plan.create | length }}.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if plan.update %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Will be updated ({{ plan.update | length }})</h2>
+  <p class="pos-muted pos-small">
+    Only directory fields change. Notes, strengths, development areas and
+    relationship type are never overwritten by an import.
+  </p>
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Email</th><th scope="col">Fields changing</th></tr></thead>
+    <tbody>
+      {% for row in plan.update[:25] %}
+      <tr>
+        <td class="pos-small">{{ row.email }}</td>
+        <td class="pos-small">
+          {% for field, value in row.changes.items() %}
+          <code>{{ field }}</code> → {{ value }}{% if not loop.last %} · {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if plan.update | length > 25 %}
+  <p class="pos-muted pos-small">Showing the first 25 of {{ plan.update | length }}.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<form method="post" action="{{ url_for('people.import_commit') }}">
+  <input type="hidden" name="path" value="{{ plan.path }}">
+  <input type="hidden" name="sha256" value="{{ plan.sha256 }}">
+  <div class="pos-page-actions">
+    {% if plan.report.missing_required %}
+      <button type="submit" class="pos-btn" disabled>Cannot commit — a required column is missing</button>
+    {% elif plan.already_imported %}
+      <button type="submit" class="pos-btn" disabled>Already loaded — nothing to commit</button>
+    {% elif plan.counts.create or plan.counts.update %}
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>
+        Commit — add {{ plan.counts.create }}, update {{ plan.counts.update }}
+      </button>
+    {% else %}
+      <button type="submit" class="pos-btn" disabled>Nothing to import — everything already matches</button>
+    {% endif %}
+    <a class="pos-btn" href="{{ url_for('people.import_select') }}">Back</a>
+  </div>
+</form>
+{% endblock %}

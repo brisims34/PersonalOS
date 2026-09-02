@@ -1,0 +1,136 @@
+{% extends "partials/_object_page.html" %}
+{% from "partials/_macros.html" import person_link, status_badge %}
+{% block title %}{{ code.code }}{% endblock %}
+
+{% block identity_name %}{{ code.code }}{% endblock %}
+
+{% block identity_badges %}
+{{ status_badge(code.status) }}
+{% if code.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+{{ code.name }}
+· <a href="{{ url_for('projects.detail', project_id=code.project_id) }}">{{ code.project_name }}</a>
+{% if code.workstream_name %}· {{ code.workstream_name }}{% endif %}
+{% endblock %}
+
+{% block primary_action %}
+<a class="pos-btn pos-btn-primary"
+   href="{{ url_for('tasks.new', project_id=code.project_id) }}" data-pos-new>+ Add task</a>
+{% endblock %}
+
+{% block secondary_actions %}
+<form method="post" action="{{ url_for('charge_codes.set_status', code_id=code.id) }}">
+  <input type="hidden" name="status" value="{{ 'inactive' if code.status == 'active' else 'active' }}">
+  <button type="submit" class="pos-btn">
+    {{ 'Deactivate' if code.status == 'active' else 'Reactivate' }}
+  </button>
+</form>
+{% if code.status != 'closed' %}
+<form method="post" action="{{ url_for('charge_codes.set_status', code_id=code.id) }}"
+      onsubmit="return confirm('Close {{ code.code }}? It disappears from booking pickers. Time already booked to it is untouched.');">
+  <input type="hidden" name="status" value="closed">
+  <button type="submit" class="pos-btn pos-btn-danger">Close code</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block body %}
+<div class="pos-grid-2">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Leadership</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr>
+          <th scope="row">Lead partner</th>
+          <td>{{ code.lead_partner_name or '—' }}
+            {% if code.partner_inherited and code.lead_partner_name %}
+            <span class="pos-badge pos-badge-neutral">from the project</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <th scope="row">Engagement manager</th>
+          <td>{{ code.engagement_manager_name or '—' }}
+            {% if code.manager_inherited and code.engagement_manager_name %}
+            <span class="pos-badge pos-badge-neutral">from the project</span>{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="pos-muted pos-small">
+      Leaving these blank inherits the project's. Different leadership across
+      codes on one engagement is normal and supported.
+    </p>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Money and lifecycle</h2>
+    <table class="pos-table pos-table-compact">
+      <tbody>
+        <tr><th scope="row">Rate card</th><td>{{ code.rate_card_name or "the project's" }}</td></tr>
+        <tr><th scope="row">ERP</th>
+            <td class="pos-num">{{ code.erp_pct | pct(1) if code.erp_pct is not none else "the project's" }}</td></tr>
+        <tr><th scope="row">Budget hours</th><td class="pos-num">{{ code.budget_hours | hours }}</td></tr>
+        <tr><th scope="row">Budget fees</th><td class="pos-num">{{ code.budget_fees | money }}</td></tr>
+        <tr><th scope="row">Opened</th><td>{{ code.opened_on | date_long }}</td></tr>
+        <tr><th scope="row">Closed</th><td>{{ code.closed_on | date_long }}</td></tr>
+        <tr><th scope="row">External reference</th><td>{{ code.external_ref or '—' }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Edit</h2>
+  <form method="post" action="{{ url_for('charge_codes.save') }}" class="pos-filter-bar">
+    <input type="hidden" name="code_id" value="{{ code.id }}">
+    <input type="hidden" name="project_id" value="{{ code.project_id }}">
+    <div class="pos-field"><label for="e-code">Code</label>
+      <input type="text" id="e-code" name="code" value="{{ code.code }}" required></div>
+    <div class="pos-field"><label for="e-name">Name</label>
+      <input type="text" id="e-name" name="name" value="{{ code.name }}" required size="26"></div>
+    <div class="pos-field"><label for="e-ws">Workstream</label>
+      <select id="e-ws" name="workstream_id"><option value="">Whole project</option>
+        {% for w in workstreams %}
+        <option value="{{ w.id }}" {% if code.workstream_id == w.id %}selected{% endif %}>{{ w.name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="e-lp">Lead partner</label>
+      <select id="e-lp" name="lead_partner_person_id"><option value="">Inherit from project</option>
+        {% for p in people %}
+        <option value="{{ p.id }}" {% if code.lead_partner_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="e-em">Engagement manager</label>
+      <select id="e-em" name="engagement_manager_person_id"><option value="">Inherit from project</option>
+        {% for p in people %}
+        <option value="{{ p.id }}" {% if code.engagement_manager_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="e-rc">Rate card</label>
+      <select id="e-rc" name="rate_card_id"><option value="">Inherit from project</option>
+        {% for c in cards %}
+        <option value="{{ c.id }}" {% if code.rate_card_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="e-erp">ERP %</label>
+      <input type="number" step="0.1" min="0" max="200" id="e-erp" name="erp_pct"
+             value="{{ code.erp_pct if code.erp_pct is not none else '' }}" placeholder="inherit"></div>
+    <div class="pos-field"><label for="e-bh">Budget hours</label>
+      <input type="number" step="0.5" min="0" id="e-bh" name="budget_hours"
+             value="{{ code.budget_hours if code.budget_hours else '' }}"></div>
+    <div class="pos-field"><label for="e-bf">Budget fees</label>
+      <input type="number" step="0.01" min="0" id="e-bf" name="budget_fees"
+             value="{{ code.budget_fees if code.budget_fees else '' }}"></div>
+    <div class="pos-field"><label for="e-op">Opened</label>
+      <input type="date" id="e-op" name="opened_on" value="{{ code.opened_on or '' }}"></div>
+    <div class="pos-field"><label for="e-df">Default for the project</label>
+      <select id="e-df" name="is_default">
+        <option value="0" {% if not code.is_default %}selected{% endif %}>No</option>
+        <option value="1" {% if code.is_default %}selected{% endif %}>Yes</option>
+      </select></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

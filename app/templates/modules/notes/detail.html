@@ -1,0 +1,110 @@
+{% extends "partials/_object_page.html" %}
+{% block title %}{{ note.title }}{% endblock %}
+
+{% block identity_name %}{{ note.title }}{% endblock %}
+
+{% block identity_badges %}
+<span class="pos-badge pos-badge-neutral">{{ note.root_label }}</span>
+{% if note.is_readonly %}<span class="pos-badge pos-badge-warn">read-only</span>{% endif %}
+{% if blocks %}<span class="pos-badge pos-badge-bench">{{ blocks | length }} live block{{ 's' if blocks | length != 1 }}</span>{% endif %}
+{% endblock %}
+
+{% block identity_subtitle %}
+<code>{{ note.rel_path }}</code>
+{% if note.project_name %}· <a href="/projects">{{ note.project_name }}</a>{% endif %}
+{% if note.workstream_name %}· {{ note.workstream_name }}{% endif %}
+· modified {{ note.mtime | datetime_long }}
+{% endblock %}
+
+{% block primary_action %}
+{% if note.is_readonly %}
+<span class="pos-btn" aria-disabled="true">Read-only root</span>
+{% else %}
+<a class="pos-btn pos-btn-primary" href="{{ url_for('notes.edit', note_id=note.id) }}" data-pos-edit>
+  Edit note
+</a>
+{% endif %}
+{% endblock %}
+
+{% block secondary_actions %}
+{% if blocks and note.workstream_id %}
+<form method="post" action="{{ url_for('notes.refresh_blocks', note_id=note.id) }}">
+  <button type="submit" class="pos-btn">Refresh live blocks</button>
+</form>
+{% endif %}
+<a class="pos-btn" href="{{ url_for('notes.index') }}">All notes</a>
+{% endblock %}
+
+{% block body %}
+<div class="pos-grid-2">
+  {# `html` is Markup returned by app.core.markdown.render, which is the single
+     place nh3 sanitisation happens — so no escaping filter is needed or wanted
+     here. Templates never mark content trusted on their own (CLAUDE.md rule 3). #}
+  <section class="pos-panel pos-note-body">
+    {{ html }}
+  </section>
+
+  <div>
+    {% if frontmatter %}
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Frontmatter</h2>
+      <table class="pos-table pos-table-compact">
+        <tbody>
+          {% for key, value in frontmatter.items() %}
+          <tr><th scope="row">{{ key }}</th><td class="pos-small">{{ value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Links out ({{ outbound | length }})</h2>
+      {% if outbound %}
+      <ul class="pos-link-list">
+        {% for row in outbound %}
+        <li>
+          <span class="pos-badge pos-badge-{{ 'ok' if row.is_resolved else 'danger' }}">
+            {{ row.target_kind }}</span>
+          {% if row.target_note_id %}
+            <a href="{{ url_for('notes.detail', note_id=row.target_note_id) }}">{{ row.target_title }}</a>
+          {% else %}
+            <span class="pos-link-label">{{ row.link_text }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="pos-muted">No links.</p>
+      {% endif %}
+    </section>
+
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Notes linking here ({{ backlinks | length }})</h2>
+      {% if backlinks %}
+      <ul class="pos-link-list">
+        {% for row in backlinks %}
+        <li><a href="{{ url_for('notes.detail', note_id=row.id) }}">{{ row.title }}</a>
+            <code class="pos-small">{{ row.link_text }}</code></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="pos-muted">Nothing links here yet.</p>
+      {% endif %}
+    </section>
+
+    {% if blocks %}
+    <section class="pos-panel">
+      <h2 class="pos-panel-heading">Managed blocks</h2>
+      <ul class="pos-link-list">
+        {% for name in blocks %}<li><code>{{ name }}</code></li>{% endfor %}
+      </ul>
+      <p class="pos-muted pos-small">
+        Refreshed from live data. Everything you write outside them survives
+        untouched, byte for byte.
+      </p>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

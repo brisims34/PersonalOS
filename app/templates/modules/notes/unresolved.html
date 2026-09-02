@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Unresolved links{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Unresolved links</h1>
+    <p class="pos-page-subtitle">
+      Links that point at nothing. Some are typos; some are notes worth writing;
+      some are records that do not exist yet.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <form method="post" action="{{ url_for('notes.rescan') }}">
+      <button type="submit" class="pos-btn pos-btn-primary">Rescan vault</button>
+    </form>
+  </div>
+</header>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Links pointing nowhere ({{ links | length }})</h2>
+  {% if links %}
+  <table class="pos-table pos-table-compact pos-table-sortable" data-pos-table>
+    <thead><tr><th scope="col">Link</th><th scope="col">Kind</th>
+               <th scope="col" class="pos-num">Times used</th>
+               <th scope="col">For example in</th></tr></thead>
+    <tbody>
+      {% for row in links %}
+      <tr>
+        <td><code>{{ row.link_text }}</code></td>
+        <td><span class="pos-badge pos-badge-neutral">{{ row.target_type or row.target_kind }}</span></td>
+        <td class="pos-num">{{ row.n | num }}</td>
+        <td><a href="{{ url_for('notes.detail', note_id=row.example_id) }}">{{ row.example_note }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="pos-muted">Every link resolves.</p>
+  {% endif %}
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Indexed but not on disk ({{ missing | length }})</h2>
+  <p class="pos-muted pos-small">
+    The index row is kept rather than deleted, so backlinks survive a file being
+    moved, renamed or temporarily unavailable.
+  </p>
+  {% if missing %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Path</th><th scope="col">Root</th>
+               <th scope="col">Last indexed</th></tr></thead>
+    <tbody>
+      {% for row in missing %}
+      <tr>
+        <td><code>{{ row.rel_path }}</code></td>
+        <td class="pos-small">{{ row.root_label }}</td>
+        <td class="pos-small">{{ row.indexed_at | datetime_long }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="pos-muted">Every indexed note is on disk.</p>
+  {% endif %}
+</section>
+{% endblock %}

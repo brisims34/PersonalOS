@@ -1,0 +1,42 @@
+{# Global chrome: breadcrumb, palette entry point, alerts, profile.
+   The profile menu is a <details> element so it works with no JavaScript. #}
+<header class="pos-topbar">
+
+  <button type="button" class="pos-icon-btn" id="pos-sidebar-toggle"
+          aria-label="Collapse or expand the sidebar" aria-expanded="{{ 'false' if sidebar_collapsed else 'true' }}">
+    <span class="pos-burger" aria-hidden="true"></span>
+  </button>
+
+  {% include "partials/_breadcrumb.html" %}
+
+  <button type="button" class="pos-search-btn" id="pos-search-open"
+          aria-label="Search and commands">
+    <span class="pos-search-text">Search…</span>
+    <kbd class="pos-kbd">Ctrl</kbd><kbd class="pos-kbd">K</kbd>
+  </button>
+
+  <div class="pos-topbar-actions">
+    <a class="pos-icon-btn" href="/activity" aria-label="Recent activity" title="Recent activity">
+      <span aria-hidden="true">◔</span>
+    </a>
+
+    <details class="pos-menu">
+      <summary class="pos-icon-btn" aria-label="Settings and theme" title="Settings and theme">
+        <span aria-hidden="true">⚙</span>
+      </summary>
+      <div class="pos-menu-panel" role="menu">
+        <form method="post" action="{{ url_for('shell.set_theme') }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <input type="hidden" name="theme" value="{{ 'light' if theme == 'dark' else 'dark' }}">
+          <button type="submit" class="pos-menu-item" role="menuitem">
+            Switch to {{ 'light' if theme == 'dark' else 'dark' }} theme
+          </button>
+        </form>
+        <button type="button" class="pos-menu-item" role="menuitem" data-pos-open="hotkeys">
+          Keyboard shortcuts <kbd class="pos-kbd">?</kbd>
+        </button>
+        <a class="pos-menu-item" role="menuitem" href="/activity">Activity log</a>
+      </div>
+    </details>
+  </div>
+</header>

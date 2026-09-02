@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import person_link, rag_badge, priority_badge %}
+{% block title %}Command Center{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Command Center</h1>
+    <p class="pos-page-subtitle">
+      What needs you, as at {{ as_of | date_long }}. Every number here is a live
+      query and clicks through to the rows behind it.
+    </p>
+  </div>
+  <div class="pos-page-actions">
+    <a class="pos-btn pos-btn-primary" href="{{ url_for('tasks.new') }}" data-pos-new>+ New task</a>
+    <form method="get">
+      <label class="pos-visually-hidden" for="as_of">Evaluate as at</label>
+      <input type="date" id="as_of" name="as_of" value="{{ as_of }}"
+             title="Look at any date — past or future" onchange="this.form.submit()">
+    </form>
+  </div>
+</header>
+
+{% if empty %}
+  {% with title='Nothing entered yet',
+          body='Start with contacts: import your directory extract, and the job title mapping levels everybody automatically. Then create a project, and it gets a folder, a charge code and workstreams.',
+          action_url='/people/import', action_label='Import contacts',
+          secondary_url='/projects/new', secondary_label='Or create a project' %}
+    {% include "partials/_empty_state.html" %}
+  {% endwith %}
+{% else %}
+
+<section class="pos-action-strip" aria-label="What needs attention">
+  <a class="pos-action-cell {% if counts.overdue %}is-alert{% endif %}"
+     href="{{ url_for('tasks.index', open=1) }}">
+    <span class="pos-action-value">{{ counts.overdue | num }}</span>
+    <span class="pos-action-label">Overdue</span>
+  </a>
+  <a class="pos-action-cell" href="{{ url_for('tasks.index', open=1) }}">
+    <span class="pos-action-value">{{ counts.due_today | num }}</span>
+    <span class="pos-action-label">Due today</span>
+  </a>
+  <a class="pos-action-cell" href="{{ url_for('tasks.index', open=1) }}">
+    <span class="pos-action-value">{{ counts.due_week | num }}</span>
+    <span class="pos-action-label">Due this week</span>
+  </a>
+  <a class="pos-action-cell {% if counts.blocked %}is-warn{% endif %}"
+     href="{{ url_for('tasks.index', status='blocked') }}">
+    <span class="pos-action-value">{{ counts.blocked | num }}</span>
+    <span class="pos-action-label">Blocked</span>
+  </a>
+  <a class="pos-action-cell {% if counts.at_risk_dependencies %}is-alert{% endif %}"
+     href="{{ url_for('projects.index') }}">
+    <span class="pos-action-value">{{ counts.at_risk_dependencies | num }}</span>
+    <span class="pos-action-label">Dependencies at risk</span>
+  </a>
+  <a class="pos-action-cell {% if counts.unpriced_people %}is-warn{% endif %}"
+     href="{{ url_for('people.index', unmapped=1) }}">
+    <span class="pos-action-value">{{ counts.unpriced_people | num }}</span>
+    <span class="pos-action-label">People with no level</span>
+  </a>
+  <a class="pos-action-cell {% if counts.tenure_due %}is-warn{% endif %}"
+     href="{{ url_for('rates.index', as_of=as_of) }}">
+    <span class="pos-action-value">{{ counts.tenure_due | num }}</span>
+    <span class="pos-action-label">Tenure transitions due</span>
+  </a>
+  <a class="pos-action-cell" href="{{ url_for('notes.unresolved') }}">
+    <span class="pos-action-value">{{ counts.unresolved_links | num }}</span>
+    <span class="pos-action-label">Unresolved links</span>
+  </a>
+</section>
+
+<div class="pos-grid-2">
+
+  <section class="pos-panel" aria-labelledby="cc-now">
+    <h2 id="cc-now" class="pos-panel-heading">Needs attention now</h2>
+    {% if overdue %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Task</th><th scope="col">Project</th>
+                 <th scope="col">Due</th><th scope="col"></th></tr></thead>
+      <tbody>
+        {% for row in overdue %}
+        <tr class="pos-row-overdue">
+          <td><a href="{{ url_for('tasks.detail', task_id=row.id) }}">{{ row.title }}</a></td>
+          <td class="pos-small">{{ row.project_name or '—' }}</td>
+          <td>{{ row.due_date | date_long }}</td>
+          <td>
+            <form method="post" action="{{ url_for('tasks.complete', task_id=row.id) }}">
+              <button type="submit" class="pos-btn">Done</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">Nothing overdue. That is worth noticing.</p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel" aria-labelledby="cc-soon">
+    <h2 id="cc-soon" class="pos-panel-heading">Today and the next seven days</h2>
+    {% if upcoming %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Task</th><th scope="col">Project</th>
+                 <th scope="col">Priority</th><th scope="col">Due</th></tr></thead>
+      <tbody>
+        {% for row in upcoming %}
+        <tr>
+          <td><a href="{{ url_for('tasks.detail', task_id=row.id) }}">{{ row.title }}</a></td>
+          <td class="pos-small">{{ row.project_name or '—' }}</td>
+          <td>{{ priority_badge(row.priority) }}</td>
+          <td>{{ row.due_date | date_long }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">Nothing due in the next week.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="pos-panel" aria-labelledby="cc-health">
+  <h2 id="cc-health" class="pos-panel-heading">Project health</h2>
+  {% if health %}
+  <table class="pos-table pos-table-compact pos-table-sortable" data-pos-table>
+    <thead>
+      <tr><th scope="col">Project</th><th scope="col">RAG</th><th scope="col">Priority</th>
+          <th scope="col">Forecast end</th><th scope="col" class="pos-num">Slip</th>
+          <th scope="col" class="pos-num">Open</th><th scope="col" class="pos-num">Overdue</th>
+          <th scope="col" class="pos-num">Workstreams</th>
+          <th scope="col" class="pos-num">Active codes</th></tr>
+    </thead>
+    <tbody>
+      {% for row in health %}
+      <tr>
+        <td><a href="{{ url_for('projects.detail', project_id=row.id) }}">{{ row.name }}</a>
+            {% if row.client_org %}<div class="pos-muted pos-small">{{ row.client_org }}</div>{% endif %}</td>
+        <td>{{ rag_badge(row.rag_status) }}</td>
+        <td>{{ priority_badge(row.priority) }}</td>
+        <td>{{ row.forecast_end | date_long }}</td>
+        <td class="pos-num">
+          {% if row.slip_days is not none and row.slip_days != 0 %}
+            <span class="pos-badge pos-badge-{{ 'danger' if row.slip_days > 0 else 'ok' }}">
+              {{ row.slip_days }}d</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="pos-num">{{ row.open_tasks | num }}</td>
+        <td class="pos-num">
+          {% if row.overdue_tasks %}
+            <span class="pos-badge pos-badge-danger">{{ row.overdue_tasks }}</span>
+          {% else %}0{% endif %}
+        </td>
+        <td class="pos-num">{{ row.workstreams | num }}</td>
+        <td class="pos-num">
+          {% if row.active_codes %}{{ row.active_codes | num }}
+          {% else %}<span class="pos-badge pos-badge-warn">none</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="pos-muted pos-small">
+    Slip is forecast end minus baseline end. Budget burn and resource cliffs join
+    this table at Phases 9 and 11.
+  </p>
+  {% else %}
+    {% with title='No active projects',
+            action_url=url_for('projects.new'), action_label='+ New project' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+</section>
+
+<div class="pos-grid-2">
+  <section class="pos-panel" aria-labelledby="cc-codes">
+    <h2 id="cc-codes" class="pos-panel-heading">My active charge codes</h2>
+    <p class="pos-muted pos-small">Where to book an hour, without opening anything.</p>
+    {% if codes %}
+    <table class="pos-table pos-table-compact">
+      <thead><tr><th scope="col">Code</th><th scope="col">Project</th>
+                 <th scope="col">Workstream</th><th scope="col">Manager</th></tr></thead>
+      <tbody>
+        {% for row in codes %}
+        <tr>
+          <td><a href="{{ url_for('charge_codes.detail', code_id=row.id) }}">{{ row.code }}</a>
+              {% if row.is_default %}<span class="pos-badge pos-badge-ok">default</span>{% endif %}</td>
+          <td class="pos-small">{{ row.project_name }}</td>
+          <td class="pos-small">{{ row.workstream_name or 'whole project' }}</td>
+          <td class="pos-small">{{ row.manager_name or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pos-muted">
+      No active charge codes. Add one from a project — without it there is nowhere
+      to book time.
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel" aria-labelledby="cc-chase">
+    <h2 id="cc-chase" class="pos-panel-heading">Chase and follow up</h2>
+    {% if dependencies or waiting %}
+      {% if dependencies %}
+      <h3 class="pos-small pos-muted">Dependencies</h3>
+      <table class="pos-table pos-table-compact">
+        <tbody>
+          {% for row in dependencies %}
+          <tr>
+            <td>
+              <a href="{{ url_for('projects.detail', project_id=row.project_id, tab='dependencies') }}">{{ row.title }}</a>
+              <div class="pos-muted pos-small">{{ row.project_name }} · from {{ row.provider or '—' }}</div>
+            </td>
+            <td>{{ row.needed_by_date | date_long }}</td>
+            <td><span class="pos-badge pos-badge-{{ 'danger' if row.status == 'broken' else 'warn' if row.status == 'at_risk' else 'neutral' }}">
+                {{ row.status | replace('_',' ') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% if waiting %}
+      <h3 class="pos-small pos-muted pos-mt-3">Waiting on somebody</h3>
+      <table class="pos-table pos-table-compact">
+        <tbody>
+          {% for row in waiting %}
+          <tr>
+            <td><a href="{{ url_for('tasks.detail', task_id=row.id) }}">{{ row.title }}</a>
+                <div class="pos-muted pos-small">{{ row.assignee_name or 'unassigned' }}
+                  {% if row.project_name %}· {{ row.project_name }}{% endif %}</div></td>
+            <td>{{ row.due_date | date_long }}</td>
+            <td><span class="pos-badge pos-badge-neutral">{{ row.task_type | replace('_',' ') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% else %}
+    <p class="pos-muted">Nothing to chase.</p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="pos-grid-2">
+  <section class="pos-panel" aria-labelledby="cc-notes">
+    <h2 id="cc-notes" class="pos-panel-heading">Recent notes</h2>
+    {% if notes %}
+    <ul class="pos-link-list">
+      {% for row in notes %}
+      <li>
+        <a href="{{ url_for('notes.detail', note_id=row.id) }}">{{ row.title }}</a>
+        <span class="pos-muted pos-small">
+          {{ row.project_name or row.root_key }} · {{ row.mtime | ago }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="pos-muted">
+      Nothing in the vault yet. <a href="{{ url_for('notes.index') }}">Rescan</a> to
+      index what is already on disk.
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="pos-panel" aria-labelledby="cc-activity">
+    <h2 id="cc-activity" class="pos-panel-heading">Recent activity</h2>
+    {% if recent %}
+    <ol class="pos-trail">
+      {% for entry in recent %}
+      <li class="pos-trail-item">
+        <span class="pos-badge pos-badge-{{ entry.action }}">{{ entry.action }}</span>
+        <a class="pos-trail-summary" href="/activity/{{ entry.id }}">{{ entry.summary }}</a>
+        <time class="pos-muted pos-small" datetime="{{ entry.created_at }}">{{ entry.created_at | ago }}</time>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="pos-muted">Nothing logged yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% endif %}
+
+<details class="pos-panel pos-mt-3">
+  <summary class="pos-panel-heading">Build state — {{ progress.live_count }} of {{ progress.total_count }} modules live</summary>
+  <table class="pos-table pos-table-compact pos-mt-3">
+    <thead><tr><th scope="col">Group</th><th scope="col">Live</th>
+               <th scope="col">Not yet built</th></tr></thead>
+    <tbody>
+      {% for group_name, buckets in progress.groups %}
+      <tr>
+        <th scope="row">{{ group_name }}</th>
+        <td>{% for module in buckets.live %}
+            <a class="pos-badge pos-badge-ok" href="{{ module.url }}">{{ module.label }}</a>
+            {% else %}<span class="pos-muted">—</span>{% endfor %}</td>
+        <td class="pos-muted pos-small">
+          {% for module in buckets.pending %}{{ module.label }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="pos-muted pos-small">
+    Schema version {{ schema.version }} · {{ schema.table_count }} tables ·
+    last migration {{ schema.last_migration or 'none' }}
+  </p>
+</details>
+{% endblock %}
