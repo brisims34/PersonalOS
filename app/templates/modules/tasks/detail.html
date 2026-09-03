@@ -14,7 +14,7 @@
 
 {% block identity_subtitle %}
 {% if task.project_name %}<a href="{{ url_for('projects.detail', project_id=task.project_id) }}">{{ task.project_name }}</a>{% endif %}
-{% if task.workstream_name %}· {{ task.workstream_name }}{% endif %}
+{% if task.workstream_name %}· <a href="{{ url_for('projects.workstream', workstream_id=task.workstream_id) }}">{{ task.workstream_name }}</a>{% endif %}
 {% if task.charge_code %}· <a href="{{ url_for('charge_codes.detail', code_id=task.charge_code_id) }}">{{ task.charge_code }}</a>{% endif %}
 {% if task.due_date %}· due {{ task.due_date | date_long }}{% endif %}
 {% endblock %}

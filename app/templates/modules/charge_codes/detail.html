@@ -12,7 +12,7 @@
 {% block identity_subtitle %}
 {{ code.name }}
 · <a href="{{ url_for('projects.detail', project_id=code.project_id) }}">{{ code.project_name }}</a>
-{% if code.workstream_name %}· {{ code.workstream_name }}{% endif %}
+{% if code.workstream_name %}· <a href="{{ url_for('projects.workstream', workstream_id=code.workstream_id) }}">{{ code.workstream_name }}</a>{% endif %}
 {% endblock %}
 
 {% block primary_action %}
@@ -27,6 +27,9 @@
     {{ 'Deactivate' if code.status == 'active' else 'Reactivate' }}
   </button>
 </form>
+{% endblock %}
+
+{% block more_actions %}
 {% if code.status != 'closed' %}
 <form method="post" action="{{ url_for('charge_codes.set_status', code_id=code.id) }}"
       onsubmit="return confirm('Close {{ code.code }}? It disappears from booking pickers. Time already booked to it is untouched.');">
