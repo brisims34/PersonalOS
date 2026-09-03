@@ -261,10 +261,13 @@ def locations(project_id=None):
     site regularly serves several workstreams and several projects."""
     if project_id is None:
         return get_db().execute(
-            "SELECT * FROM locations WHERE archived_at IS NULL ORDER BY name"
+            "SELECT l.*, p.full_name AS site_contact_name FROM locations l "
+            "LEFT JOIN people p ON p.id = l.site_contact_person_id "
+            "WHERE l.archived_at IS NULL ORDER BY l.name"
         ).fetchall()
     return get_db().execute(
-        "SELECT l.* FROM locations l "
+        "SELECT l.*, p.full_name AS site_contact_name FROM locations l "
+        "LEFT JOIN people p ON p.id = l.site_contact_person_id "
         "JOIN entity_links el ON el.target_type = 'location' AND el.target_id = l.id "
         "WHERE el.source_type = 'project' AND el.source_id = ? AND l.archived_at IS NULL "
         "ORDER BY l.name",

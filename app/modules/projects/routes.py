@@ -557,6 +557,39 @@ def remove_location(project_id, location_id):
     return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
 
 
+LOCATION_INLINE_FIELDS = {"location_kind", "site_contact_person_id"}
+
+
+@bp.post("/locations/<int:location_id>/field")
+def update_location_field(location_id):
+    location = models.get_location(location_id)
+    if location is None:
+        abort(404)
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in LOCATION_INLINE_FIELDS:
+        return {"ok": False, "error": f"\"{field}\" can't be edited inline here."}
+
+    if field == "site_contact_person_id" and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+
+    try:
+        models.update_location(location_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_location(location_id)
+    activity.log("location", location_id, "updated", f"Updated {field} for {updated['name']}")
+    display = updated["site_contact_name"] or "" if field == "site_contact_person_id" else (updated[field] or "")
+    return {"ok": True, "display": display}
+
+
 @bp.post("/<int:project_id>/resources")
 def add_resource(project_id):
     if models.get_project(project_id) is None:
