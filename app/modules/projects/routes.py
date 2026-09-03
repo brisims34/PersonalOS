@@ -82,6 +82,9 @@ def detail(project_id):
         deps_show_archived=show_archived_deps,
         folder=folders.folder_summary(project["folder_path"]),
         people=people_models.list_people(limit=1000),
+        workstream_statuses=WORKSTREAM_STATUSES,
+        people_options=[{"id": p["id"], "label": p["full_name"]}
+                         for p in people_models.list_people(limit=1000)],
         related_records=links.related("project", project_id),
         trail=activity.for_entity("project", project_id, limit=15),
         crumbs=[CRUMB, project["name"]],
@@ -426,6 +429,47 @@ def add_workstream_team_member(workstream_id):
                  f"Linked {person['full_name']} to the workstream")
     flash(f"{person['full_name']} linked to this workstream.", "success")
     return redirect(url_for("projects.workstream", workstream_id=workstream_id))
+
+
+WORKSTREAM_STATUSES = ["planned", "active", "on_hold", "completed", "cancelled"]
+WORKSTREAM_INLINE_FIELDS = {"status", "lead_person_id", "forecast_end"}
+WORKSTREAM_INLINE_FK_FIELDS = {"lead_person_id"}
+
+
+@bp.post("/workstreams/<int:workstream_id>/field")
+def update_workstream_field(workstream_id):
+    workstream = models.get_workstream(workstream_id)
+    if workstream is None:
+        abort(404)
+    if workstream["archived_at"] is not None:
+        return {"ok": False, "error": "This workstream is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in WORKSTREAM_INLINE_FIELDS:
+        return {"ok": False, "error": f"\"{field}\" can't be edited inline here."}
+
+    if field in WORKSTREAM_INLINE_FK_FIELDS and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+
+    try:
+        models.update_workstream(workstream_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_workstream(workstream_id)
+    activity.log("workstream", workstream_id, "updated", f"Updated {field} for {updated['name']}")
+
+    if field in WORKSTREAM_INLINE_FK_FIELDS:
+        display = updated["lead_name"] or ""
+    else:
+        display = str(updated[field]) if updated[field] is not None else ""
+    return {"ok": True, "display": display}
 
 
 # --- locations, resources, dependencies -------------------------------------
