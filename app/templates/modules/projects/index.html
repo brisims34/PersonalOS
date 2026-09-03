@@ -67,7 +67,8 @@
 
 {% if rows %}
 <p class="pos-result-count" aria-live="polite">{{ total | num }} project{{ 's' if total != 1 }}</p>
-<table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-projects">
+<table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-projects"
+       data-edit-base="/projects/{id}/field">
   <caption class="pos-visually-hidden">Projects</caption>
   <thead>
     <tr>
@@ -81,23 +82,29 @@
   </thead>
   <tbody>
     {% for row in rows %}
-    <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+    <tr data-record-id="{{ row.id }}" data-archived="{{ '1' if row.archived_at else '0' }}"
+        {% if row.archived_at %}class="pos-row-archived"{% endif %}>
       <td>
         <a href="{{ url_for('projects.detail', project_id=row.id) }}">{{ row.name }}</a>
         {% if row.client_org %}<div class="pos-muted pos-small">{{ row.client_org }}</div>{% endif %}
       </td>
       <td class="pos-small">{{ row.portfolio_name }}</td>
       <td class="pos-small">{{ row.project_type or '—' }}</td>
-      <td>{{ status_badge(row.status) }}</td>
-      <td>{{ rag_badge(row.rag_status) }}</td>
-      <td>{{ priority_badge(row.priority) }}</td>
-      <td>{{ row.forecast_end | date_long }}</td>
+      <td data-field="status" data-type="select" data-options="{{ statuses | join(',') }}"
+          tabindex="0">{{ row.status }}</td>
+      <td data-field="rag_status" data-type="select" data-options="{{ rag_statuses | join(',') }}"
+          tabindex="0">{{ row.rag_status or '' }}</td>
+      <td data-field="priority" data-type="select" data-options="{{ priorities | join(',') }}"
+          tabindex="0">{{ row.priority }}</td>
+      <td data-field="forecast_end" data-type="date" tabindex="0">{{ row.forecast_end or '' }}</td>
       <td class="pos-num">{{ row.workstream_count | num }}</td>
       <td class="pos-num">
         {% if row.active_code_count %}{{ row.active_code_count | num }}
         {% else %}<span class="pos-badge pos-badge-warn">none</span>{% endif %}
       </td>
-      <td class="pos-small">{{ row.lead_partner_name or '—' }}</td>
+      <td data-field="lead_partner_person_id" data-type="fk-select" data-options-src="#people-options"
+          data-value="{{ row.lead_partner_person_id or '' }}"
+          tabindex="0">{{ row.lead_partner_name or '' }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -117,4 +124,8 @@
     {% endwith %}
   {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="people-options">{{ people_options | tojson }}</script>
 {% endblock %}

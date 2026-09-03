@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date
 
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
@@ -20,6 +21,14 @@ TABS = [
     ("locations", "Locations & resources"), ("dependencies", "Dependencies"),
 ]
 
+# status/priority/rag_status are plain CHECK-constraint vocabularies on the
+# projects table (see app/core/migrations/0004_work.sql), not config_options
+# rows — there is no config.options() set for them. These mirror the literal
+# lists already hardcoded in templates/modules/projects/edit.html.
+PROJECT_STATUSES = ["pipeline", "active", "on_hold", "completed", "cancelled"]
+PROJECT_PRIORITIES = ["high", "medium", "low"]
+PROJECT_RAG_STATUSES = ["green", "amber", "red"]
+
 
 @bp.get("/")
 def index():
@@ -38,6 +47,11 @@ def index():
         filters=filters,
         portfolios=models.portfolio_summary(),
         project_types=config.options("project_type"),
+        statuses=PROJECT_STATUSES,
+        priorities=PROJECT_PRIORITIES,
+        rag_statuses=PROJECT_RAG_STATUSES,
+        people_options=[{"id": p["id"], "label": p["full_name"]}
+                         for p in people_models.list_people(limit=1000)],
         crumbs=[CRUMB[0]],
     )
 
@@ -236,6 +250,56 @@ def archive(project_id):
         "success",
     )
     return redirect(url_for("projects.detail", project_id=project_id))
+
+
+PROJECT_INLINE_FIELDS = {
+    "status", "priority", "rag_status", "forecast_end",
+    "lead_partner_person_id", "engagement_manager_person_id", "project_lead_person_id",
+}
+PROJECT_INLINE_FK_FIELDS = {
+    "lead_partner_person_id", "engagement_manager_person_id", "project_lead_person_id",
+}
+
+
+@bp.post("/<int:project_id>/field")
+def update_project_field(project_id):
+    project = models.get_project(project_id)
+    if project is None:
+        abort(404)
+    if project["archived_at"] is not None:
+        return {"ok": False, "error": "This project is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in PROJECT_INLINE_FIELDS:
+        return {"ok": False, "error": f"“{field}” can't be edited inline here."}
+
+    if field in PROJECT_INLINE_FK_FIELDS and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+
+    try:
+        models.update_project(project_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_project(project_id)
+    activity.log("project", project_id, "updated", f"Updated {field} for {updated['name']}")
+
+    if field in PROJECT_INLINE_FK_FIELDS:
+        name_column = {
+            "lead_partner_person_id": "lead_partner_name",
+            "engagement_manager_person_id": "engagement_manager_name",
+            "project_lead_person_id": "project_lead_name",
+        }[field]
+        display = updated[name_column] or ""
+    else:
+        display = str(updated[field]) if updated[field] is not None else ""
+    return {"ok": True, "display": display}
 
 
 # --- workstreams ------------------------------------------------------------
