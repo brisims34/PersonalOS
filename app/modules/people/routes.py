@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date
 
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
@@ -14,6 +15,8 @@ guard_blueprint(bp, "people")
 
 PAGE_SIZE = 50
 CRUMB = ("Contacts", "/people")
+
+PERSON_INLINE_FIELDS = {"status", "job_title", "department", "manager_person_id"}
 
 
 @bp.get("/")
@@ -51,6 +54,8 @@ def index():
         unmapped_titles=models.unmapped_titles(),
         transitions=rates.tenure_transitions_due(as_of),
         as_of=as_of,
+        people_options=[{"id": p["id"], "label": p["full_name"]}
+                        for p in models.list_people(limit=1000)],
         crumbs=[CRUMB[0]],
     )
 
@@ -82,8 +87,48 @@ def detail(person_id):
         dispositions=config.options("disposition"),
         related_records=links.related("person", person_id),
         trail=activity.for_entity("person", person_id, limit=15),
+        people_options=[{"id": p["id"], "label": p["full_name"]}
+                        for p in models.list_people(limit=1000)],
         crumbs=[CRUMB, person["full_name"]],
     )
+
+
+@bp.post("/<int:person_id>/field")
+def update_field(person_id):
+    person = models.get_person(person_id)
+    if person is None:
+        abort(404)
+    if person["archived_at"] is not None:
+        return {"ok": False, "error": "This contact is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in PERSON_INLINE_FIELDS:
+        return {"ok": False, "error": f"“{field}” can't be edited inline here."}
+
+    if field == "manager_person_id" and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if value == person_id:
+            return {"ok": False, "error": "A person can't be their own manager."}
+        if models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+
+    try:
+        models.update_person(person_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_person(person_id)
+    activity.log("person", person_id, "updated", f"Updated {field} for {updated['full_name']}")
+    if field == "manager_person_id":
+        manager = models.get_person(updated["manager_person_id"]) if updated["manager_person_id"] else None
+        display = manager["full_name"] if manager else ""
+    else:
+        display = updated[field] or ""
+    return {"ok": True, "display": display}
 
 
 @bp.get("/new")

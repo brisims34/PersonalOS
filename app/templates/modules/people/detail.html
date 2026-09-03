@@ -61,20 +61,38 @@
 <div class="pos-grid-2">
   <section class="pos-panel">
     <h2 class="pos-panel-heading">Directory</h2>
-    <table class="pos-table pos-table-compact">
+    <table class="pos-table pos-table-compact" data-edit-base="/people/{id}/field">
       <tbody>
         <tr><th scope="row">Email</th><td>{{ person.email or '—' }}</td></tr>
         <tr><th scope="row">Business phone</th><td>{{ person.business_phone or '—' }}</td></tr>
         <tr><th scope="row">Mobile</th><td>{{ person.mobile_phone or '—' }}</td></tr>
         <tr><th scope="row">Location</th><td>{{ person.city or '—' }}{% if person.state_province %}, {{ person.state_province }}{% endif %}</td></tr>
-        <tr><th scope="row">Department</th><td>{{ person.department or '—' }}</td></tr>
+        <tr data-record-id="{{ person.id }}" data-archived="{{ '1' if person.archived_at else '0' }}">
+          <th scope="row">Job title</th>
+          <td data-field="job_title" data-type="text" data-value="{{ person.job_title or '' }}"
+              tabindex="0">{{ person.job_title or '—' }}</td>
+        </tr>
+        <tr data-record-id="{{ person.id }}" data-archived="{{ '1' if person.archived_at else '0' }}">
+          <th scope="row">Department</th>
+          <td data-field="department" data-type="text" data-value="{{ person.department or '' }}"
+              tabindex="0">{{ person.department or '—' }}</td>
+        </tr>
         <tr><th scope="row">Company</th><td>{{ person.company or '—' }}</td></tr>
-        <tr><th scope="row">Manager</th><td>
-          {{ person_link(person.manager_id, person.manager_name) }}
-          {% if not person.manager_id and person.manager_email %}
-            <span class="pos-muted pos-small">{{ person.manager_email }} — not in the database yet</span>
-          {% endif %}
-        </td></tr>
+        <tr data-record-id="{{ person.id }}" data-archived="{{ '1' if person.archived_at else '0' }}">
+          <th scope="row">Manager</th>
+          <td data-field="manager_person_id" data-type="fk-select" data-options-src="#manager-options"
+              data-value="{{ person.manager_id or '' }}" tabindex="0">
+            {{ person_link(person.manager_id, person.manager_name) }}
+            {% if not person.manager_id and person.manager_email %}
+              <span class="pos-muted pos-small">{{ person.manager_email }} — not in the database yet</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr data-record-id="{{ person.id }}" data-archived="{{ '1' if person.archived_at else '0' }}">
+          <th scope="row">Status</th>
+          <td data-field="status" data-type="select" data-options="active,inactive,departed"
+              data-value="{{ person.status }}" tabindex="0">{{ status_badge(person.status) }}</td>
+        </tr>
         <tr><th scope="row">Source</th><td>{{ person.import_source | replace('_', ' ') }}</td></tr>
       </tbody>
     </table>
@@ -392,4 +410,8 @@
 </section>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="manager-options">{{ people_options | tojson }}</script>
 {% endblock %}

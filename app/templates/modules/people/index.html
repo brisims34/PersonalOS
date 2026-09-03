@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/_macros.html" import person_link, pager %}
+{% from "partials/_macros.html" import person_link, pager, status_badge %}
 {% block title %}Contacts{% endblock %}
 
 {% block content %}
@@ -126,34 +126,43 @@
 </p>
 
 <table class="pos-table pos-table-sortable" id="people-table" data-pos-table
-       data-pos-export-name="personalos-contacts">
+       data-pos-export-name="personalos-contacts" data-edit-base="/people/{id}/field">
   <caption class="pos-visually-hidden">Contacts</caption>
   <thead>
     <tr>
       <th scope="col">Name</th>
       <th scope="col">Job title</th>
       <th scope="col">Level</th>
+      <th scope="col">Department</th>
       <th scope="col">Company</th>
       <th scope="col">Location</th>
       <th scope="col">Manager</th>
+      <th scope="col">Status</th>
     </tr>
   </thead>
   <tbody>
     {% for row in rows %}
-    <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+    <tr data-record-id="{{ row.id }}" data-archived="{{ '1' if row.archived_at else '0' }}"
+        {% if row.archived_at %}class="pos-row-archived"{% endif %}>
       <td>
         <a href="{{ url_for('people.detail', person_id=row.id) }}">{{ row.full_name }}</a>
         {% if row.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}
         <div class="pos-muted pos-small">{{ row.email or '—' }}</div>
       </td>
-      <td>{{ row.job_title or '—' }}</td>
+      <td data-field="job_title" data-type="text" data-value="{{ row.job_title or '' }}"
+          tabindex="0">{{ row.job_title or '—' }}</td>
       <td>
         {% if row.level_label %}{{ row.level_label }}
         {% else %}<span class="pos-badge pos-badge-danger">no level</span>{% endif %}
       </td>
+      <td class="pos-small" data-field="department" data-type="text" data-value="{{ row.department or '' }}"
+          tabindex="0">{{ row.department or '—' }}</td>
       <td class="pos-small">{{ row.company or '—' }}</td>
       <td class="pos-small">{{ row.city or '—' }}{% if row.state_province %}, {{ row.state_province }}{% endif %}</td>
-      <td>{{ person_link(row.manager_id, row.manager_name) }}</td>
+      <td data-field="manager_person_id" data-type="fk-select" data-options-src="#manager-options"
+          data-value="{{ row.manager_id or '' }}" tabindex="0">{{ person_link(row.manager_id, row.manager_name) }}</td>
+      <td data-field="status" data-type="select" data-options="active,inactive,departed"
+          data-value="{{ row.status }}" tabindex="0">{{ status_badge(row.status) }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -177,4 +186,8 @@
     {% endwith %}
   {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="manager-options">{{ people_options | tojson }}</script>
 {% endblock %}
