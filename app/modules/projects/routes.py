@@ -49,6 +49,7 @@ def detail(project_id):
         abort(404)
 
     tab = request.args.get("tab", "overview")
+    show_archived_deps = request.args.get("show_archived") == "1"
     from app.modules.charge_codes import models as code_models
 
     return render_template(
@@ -62,7 +63,8 @@ def detail(project_id):
         locations=models.locations(project_id),
         all_locations=models.locations(),
         resources=models.work_resources(project_id=project_id, include_inactive=True),
-        deps=models.dependencies(project_id),
+        deps=models.dependencies(project_id, include_archived=show_archived_deps),
+        deps_show_archived=show_archived_deps,
         folder=folders.folder_summary(project["folder_path"]),
         people=people_models.list_people(limit=1000),
         related_records=links.related("project", project_id),
@@ -508,6 +510,69 @@ def dependency_status(dependency_id):
     activity.log("dependency", dependency_id, "updated", f"Dependency marked {status}")
     flash(f"Dependency marked {status.replace('_', ' ')}.", "success")
     return redirect(url_for("projects.detail", project_id=project_id, tab="dependencies"))
+
+
+@bp.route("/dependencies/<int:dependency_id>/edit", methods=["GET", "POST"])
+def edit_dependency(dependency_id):
+    dependency = models.get_dependency(dependency_id)
+    if dependency is None:
+        abort(404)
+
+    if request.method == "POST":
+        show_archived = request.form.get("show_archived") == "1"
+        fields = _form_fields(request.form, models.DEPENDENCY_EDIT_WRITABLE)
+        if not fields.get("title"):
+            flash("A dependency needs a title — what is actually needed.", "error")
+            return redirect(url_for("projects.edit_dependency", dependency_id=dependency_id,
+                                     show_archived=1 if show_archived else None))
+        if fields.get("criticality") not in ("critical", "important", "minor"):
+            flash("Choose a valid criticality: critical, important or minor.", "error")
+            return redirect(url_for("projects.edit_dependency", dependency_id=dependency_id,
+                                     show_archived=1 if show_archived else None))
+        models.update_dependency(dependency_id, fields)
+        activity.log("dependency", dependency_id, "updated",
+                     f"Updated dependency {fields['title']}")
+        flash(f"Dependency “{fields['title']}” updated.", "success")
+        return redirect(
+            url_for("projects.detail", project_id=dependency["project_id"], tab="dependencies",
+                     show_archived=1 if show_archived else None)
+        )
+
+    show_archived = request.args.get("show_archived") == "1"
+    return render_template(
+        "modules/projects/dependency_edit.html",
+        dependency=dependency,
+        people=people_models.list_people(limit=1000),
+        show_archived=show_archived,
+        crumbs=[CRUMB,
+                (dependency["project_name"],
+                 url_for("projects.detail", project_id=dependency["project_id"])),
+                "Edit dependency"],
+    )
+
+
+@bp.post("/dependencies/<int:dependency_id>/archive")
+def archive_dependency(dependency_id):
+    dependency = models.get_dependency(dependency_id)
+    if dependency is None:
+        abort(404)
+    show_archived = request.form.get("show_archived") == "1"
+    restoring = dependency["archived_at"] is not None
+    models.archive_dependency(dependency_id, archived=not restoring)
+    action = "restored" if restoring else "archived"
+    activity.log("dependency", dependency_id, action,
+                 f"Dependency {dependency['title']} {action}")
+    flash(
+        f"Dependency “{dependency['title']}” {action}. "
+        + ("It is back in the active dependencies list." if restoring
+           else "It is hidden from the active list, but the record and its status "
+                "history are kept — nothing was deleted."),
+        "success",
+    )
+    return redirect(
+        url_for("projects.detail", project_id=dependency["project_id"], tab="dependencies",
+                 show_archived=1 if show_archived else None)
+    )
 
 
 @bp.post("/<int:project_id>/team")
