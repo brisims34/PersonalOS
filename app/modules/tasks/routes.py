@@ -20,11 +20,13 @@ CRUMB = ("Tasks", "/tasks")
 @bp.get("/")
 def index():
     as_of = request.args.get("as_of") or date.today().isoformat()
+    project_id = request.args.get("project_id", type=int)
     filters = {
         "search": (request.args.get("q") or "").strip() or None,
         "status": request.args.get("status") or None,
         "priority": request.args.get("priority") or None,
-        "project_id": request.args.get("project_id", type=int),
+        "project_id": project_id,
+        "workstream_id": request.args.get("workstream_id", type=int),
         "charge_code_id": request.args.get("charge_code_id", type=int),
         "assignee_person_id": request.args.get("assignee", type=int),
         "task_type": request.args.get("task_type") or None,
@@ -38,6 +40,9 @@ def index():
         filters=filters,
         as_of=as_of,
         projects=project_models.list_projects(limit=500),
+        # Scoped to the selected project when one is chosen, else every
+        # workstream labelled with its project name (P8 — no re-asking).
+        workstreams=project_models.all_workstreams(project_id),
         codes=code_models.active_codes(),
         people=people_models.list_people(limit=1000),
         task_types=config.options("task_type"),

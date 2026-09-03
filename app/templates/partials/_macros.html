@@ -33,6 +33,14 @@
   <span class="pos-badge pos-badge-{{ tone.get(priority, 'neutral') }}">{{ priority }}</span>
 {% endmacro %}
 
+{% macro task_status_badge(status) %}
+  {%- set tone = {'completed': 'ok', 'blocked': 'danger', 'in_progress': 'warn',
+                  'cancelled': 'neutral', 'open': 'neutral'} -%}
+  <span class="pos-badge pos-badge-{{ tone.get(status, 'neutral') }}">
+    {{- status | replace('_', ' ') -}}
+  </span>
+{% endmacro %}
+
 {# Every bar carries its numeral and band word — never colour alone (P12). #}
 {% macro capacity_bar(pct, width=90) %}
   {%- set value = pct or 0 -%}

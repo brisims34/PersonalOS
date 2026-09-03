@@ -208,6 +208,39 @@ def set_workstream_folder(workstream_id, folder_path):
     db.commit()
 
 
+def workstream_tasks(workstream_id):
+    """The tasks that belong to this workstream, for the workstream detail page.
+
+    `tasks` is owned by the tasks module, but this is a read-only display
+    query against a shared table (CLAUDE.md rule — no cross-module import of
+    tasks/models.py, the same way app/core/ queries shared tables directly).
+    """
+    return get_db().execute(
+        "SELECT t.id, t.title, t.status, t.due_date, "
+        "       a.full_name AS assignee_name "
+        "FROM tasks t LEFT JOIN people a ON a.id = t.assignee_person_id "
+        "WHERE t.workstream_id = ? AND t.archived_at IS NULL "
+        "ORDER BY t.due_date IS NULL, t.due_date, t.sort_order, t.title",
+        (workstream_id,),
+    ).fetchall()
+
+
+def all_workstreams(project_id=None):
+    """Every workstream labelled with its project name, for the tasks filter
+    dropdown — scoped to one project when a project is already selected."""
+    sql = (
+        "SELECT w.id, w.name, p.name AS project_name "
+        "FROM workstreams w JOIN projects p ON p.id = w.project_id "
+        "WHERE w.archived_at IS NULL AND p.archived_at IS NULL"
+    )
+    params = []
+    if project_id:
+        sql += " AND w.project_id = ?"
+        params.append(project_id)
+    sql += " ORDER BY p.name, w.sort_order, w.name"
+    return get_db().execute(sql, params).fetchall()
+
+
 # --- locations --------------------------------------------------------------
 
 
