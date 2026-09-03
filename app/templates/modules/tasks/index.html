@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/_macros.html" import person_link, priority_badge %}
+{% from "partials/_macros.html" import person_link, priority_badge, task_status_badge %}
 {% block title %}Tasks{% endblock %}
 
 {% block content %}
@@ -80,6 +80,17 @@
       {% endfor %}
     </select>
   </div>
+  <div class="pos-field">
+    <label for="f-ws">Workstream</label>
+    <select id="f-ws" name="workstream_id">
+      <option value="">All workstreams</option>
+      {% for w in workstreams %}
+      <option value="{{ w.id }}" {% if filters.workstream_id == w.id %}selected{% endif %}>
+        {% if w.project_name %}{{ w.project_name }} — {% endif %}{{ w.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="pos-field pos-field-actions">
     <button type="submit" class="pos-btn">Filter</button>
   </div>
@@ -129,8 +140,7 @@
           <span class="pos-badge pos-badge-danger">overdue</span>
           {% endif %}
         </td>
-        <td><span class="pos-badge pos-badge-{{ 'ok' if row.status == 'completed' else 'danger' if row.status == 'blocked' else 'warn' if row.status == 'in_progress' else 'neutral' }}">
-            {{ row.status | replace('_',' ') }}</span></td>
+        <td>{{ task_status_badge(row.status) }}</td>
         <td>
           {% if row.status not in ('completed','cancelled') %}
           <button type="submit" class="pos-btn"
@@ -143,7 +153,7 @@
   </table>
 </form>
 {% else %}
-  {% if filters.search or filters.status or filters.project_id %}
+  {% if filters.search or filters.status or filters.project_id or filters.workstream_id %}
     {% with title='No tasks match those filters',
             action_url=url_for('tasks.index'), action_label='Clear filters' %}
       {% include "partials/_empty_state.html" %}

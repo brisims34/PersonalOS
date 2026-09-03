@@ -283,6 +283,7 @@ def workstream(workstream_id):
         workstream=record,
         inbound=inbound,
         outbound=outbound,
+        tasks=models.workstream_tasks(workstream_id),
         resources=models.work_resources(workstream_id=workstream_id),
         folder=folders.folder_summary(record["folder_path"]),
         related_records=links.related("workstream", workstream_id),
