@@ -190,6 +190,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - `rate_cards` (standard and negotiated), `rate_card_entries`, `person_rate_overrides` CRUD
 - `app/core/rates.py` — `resolve_rates()` returning standard rate, ERP %, engagement rate and cost rate
 - **Tenure transition check** — surface people at or past 36 months as Director / 60 months as Partner
+- **Inline editing** — `status`, `job_title`, `department` and `manager_person_id` are click-to-edit on the list and detail pages, alongside the existing full edit form; see `docs/superpowers/plans/2026-09-02-inline-table-editing.md`
 
 **Acceptance**
 
@@ -208,6 +209,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - [x] `level_at()` reads `person_level_history`, not the denormalised column
 - [x] Loading `AASppl.xlsx` creates **450 people**, every one levelled from job title, and writes one `import_batches` row
 - [x] Re-loading the same file is refused — the preview says when it was loaded, the commit button is disabled, and a forced commit rolls back on the unique constraint
+- [x] Click a contact's status/job title/department/manager cell on the list or detail page → edits in place and saves without a page reload; an archived contact rejects the edit; a self-manager assignment is rejected with a specific message
 - [x] A **genuinely refreshed** extract still loads: 1 new person and 1 changed field, 451 people total, not 901
 - [x] Nothing reads a spreadsheet at startup — the seed file is named in the importer and nowhere else
 - [ ] Person page shows job title, mapped level, function, company
@@ -242,6 +244,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - **`locations`** — physical sites with building, floor, room, access and logistics notes; linked to workstreams via `entity_links`
 - **`work_resources`** — pointers to folders, files, scripts, repos, chat channels and email threads, classified by `resource_role` (input / working / output / communication / reference). **Paths only, never contents.** Includes a "verify resources" action that checks local paths and records `verify_status`
 - **`dependencies`** — directional, with `from_workstream_id` (needs) and either `to_workstream_id` (internal) or `external_party`. Inbound and outbound views per workstream
+- **Inline editing** — click-to-edit for portfolio kind; project/workstream/charge-code status, priority, RAG, dates and lead roles; location kind and site contact; work-resource label/kind/owner; dependency status, criticality, date and owner — alongside the existing full edit forms; see `docs/superpowers/plans/2026-09-02-inline-table-editing.md`
 
 **Acceptance**
 
@@ -258,6 +261,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - [ ] Add work resources of each role; "verify resources" marks a deleted local path as `missing` and a URL as `not_verifiable`
 - [ ] Create a cross-workstream dependency; it appears as **inbound** on the needing workstream and **outbound** on the providing one
 - [ ] Create a dependency on an external party (no `to_workstream_id`) — renders correctly in both views
+- [x] Click a status/priority/RAG/date/lead cell on the projects, workstreams, locations, work-resources or dependencies tables → edits in place; changing a charge code's status to `closed` inline auto-populates `closed_on`, matching the dedicated status route; archived/inactive rows reject the edit; containment fields (`portfolio_id`, `project_id`, `workstream_id`) are not inline-editable
 
 ---
 
@@ -321,6 +325,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - "My Active Charge Codes" card
 - Traceable-number drawer component (`UI_DESIGN_SYSTEM.md` §3.6) — first real use
 - Quick-capture from the palette
+- **Inline editing** — status, priority, due date, estimate hours and assignee are click-to-edit on the list and detail pages; see `docs/superpowers/plans/2026-09-02-inline-table-editing.md`
 
 **Acceptance**
 
@@ -334,6 +339,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - [ ] "My Active Charge Codes" lists only `active` codes
 - [ ] Bulk-select five tasks, change status in one action, get a **specific** confirmation naming the count
 - [ ] Whole flow — create project, add workstream, add charge code, add task, complete it — is possible **without touching the mouse**
+- [x] Click a task's status/priority/due-date/estimate/assignee cell on the list or detail page → edits in place and saves without a page reload; an archived task rejects the edit; clearing the assignee persists as no owner, not a stale value
 
 > **Stop here and review.** This is the shape everything else inherits.
 
