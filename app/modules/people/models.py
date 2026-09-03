@@ -414,6 +414,99 @@ def resolve_manager_links():
     return cursor.rowcount, [r["manager_email"] for r in unresolved]
 
 
+# --- involvements ------------------------------------------------------------
+
+
+def involvements_for_person(person_id):
+    """Every project/workstream this person is tied to, from all three sources
+    named in CLAUDE.md rule 9: the fixed leadership FKs on `projects` and
+    `workstreams`, and the free-text roles recorded in `entity_links`. Unioned
+    in Python rather than one SQL UNION — the row shape and role label differ
+    enough per source that a single query would read worse, not better.
+
+    Archived projects and workstreams are excluded, matching every comparable
+    query in the app (`projects.models.project_team`, `workstreams_for`, …) —
+    this is a "what are they doing now" view, not a full history.
+    """
+    db = get_db()
+    rows = []
+
+    fixed_project_roles = (
+        ("lead_partner_person_id", "Lead Partner"),
+        ("engagement_manager_person_id", "Engagement Manager"),
+        ("project_lead_person_id", "Project Lead"),
+    )
+    for column, role in fixed_project_roles:
+        # `column` is always one of the three developer constants above, never
+        # request data (CLAUDE.md rule 2).
+        for row in db.execute(
+            f"SELECT id AS project_id, name AS project_name FROM projects "
+            f"WHERE {column} = ? AND archived_at IS NULL",
+            (person_id,),
+        ):
+            rows.append({
+                "project_id": row["project_id"],
+                "project_name": row["project_name"],
+                "workstream_id": None,
+                "workstream_name": None,
+                "role": role,
+                "source": "project_fk",
+            })
+
+    for row in db.execute(
+        "SELECT w.id AS workstream_id, w.name AS workstream_name, "
+        "       p.id AS project_id, p.name AS project_name "
+        "FROM workstreams w JOIN projects p ON p.id = w.project_id "
+        "WHERE w.lead_person_id = ? AND w.archived_at IS NULL AND p.archived_at IS NULL",
+        (person_id,),
+    ):
+        rows.append({
+            "project_id": row["project_id"],
+            "project_name": row["project_name"],
+            "workstream_id": row["workstream_id"],
+            "workstream_name": row["workstream_name"],
+            "role": "Workstream Lead",
+            "source": "workstream_fk",
+        })
+
+    for row in db.execute(
+        "SELECT el.link_label AS role, p.id AS project_id, p.name AS project_name "
+        "FROM entity_links el JOIN projects p ON p.id = el.source_id "
+        "WHERE el.source_type = 'project' AND el.target_type = 'person' AND el.target_id = ? "
+        "  AND p.archived_at IS NULL",
+        (person_id,),
+    ):
+        rows.append({
+            "project_id": row["project_id"],
+            "project_name": row["project_name"],
+            "workstream_id": None,
+            "workstream_name": None,
+            "role": row["role"] or "Team member",
+            "source": "entity_link",
+        })
+
+    for row in db.execute(
+        "SELECT el.link_label AS role, w.id AS workstream_id, w.name AS workstream_name, "
+        "       p.id AS project_id, p.name AS project_name "
+        "FROM entity_links el JOIN workstreams w ON w.id = el.source_id "
+        "JOIN projects p ON p.id = w.project_id "
+        "WHERE el.source_type = 'workstream' AND el.target_type = 'person' AND el.target_id = ? "
+        "  AND w.archived_at IS NULL AND p.archived_at IS NULL",
+        (person_id,),
+    ):
+        rows.append({
+            "project_id": row["project_id"],
+            "project_name": row["project_name"],
+            "workstream_id": row["workstream_id"],
+            "workstream_name": row["workstream_name"],
+            "role": row["role"] or "Team member",
+            "source": "entity_link",
+        })
+
+    rows.sort(key=lambda r: (r["project_name"] or "", r["workstream_name"] or "", r["role"] or ""))
+    return rows
+
+
 # --- job title map ----------------------------------------------------------
 
 
