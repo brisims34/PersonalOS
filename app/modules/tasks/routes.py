@@ -18,6 +18,7 @@ guard_blueprint(bp, "tasks")
 CRUMB = ("Tasks", "/tasks")
 
 TASK_INLINE_FIELDS = {"status", "priority", "due_date", "estimate_hours", "assignee_person_id"}
+TASK_STATUSES = ("open", "in_progress", "blocked", "completed", "cancelled")
 
 
 @bp.get("/")
@@ -102,11 +103,26 @@ def update_field(task_id):
             value = float(value)
         except ValueError:
             return {"ok": False, "error": "Estimate hours must be a number."}
+    elif field == "status" and value not in TASK_STATUSES:
+        if value is None:
+            return {"ok": False, "error": "A task needs a status."}
+        return {"ok": False, "error": f"“{value}” isn't a valid task status."}
 
     try:
-        models.update_task(task_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+        if field == "status":
+            # status carries lifecycle side effects (completed_at, and
+            # regenerating the next occurrence of a recurring task) that
+            # plain update_task() does not replicate — the same class of
+            # status/lifecycle split already fixed for Dependencies and
+            # Charge Codes. Route it through set_status(), matching the
+            # existing /complete and /bulk routes.
+            models.set_status([task_id], value)
+            if value == "completed":
+                models.regenerate_from(task_id, date.today().isoformat())
+        else:
+            models.update_task(task_id, {field: value})
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_task(task_id)
     activity.log("task", task_id, "updated", f"Updated {field} for “{updated['title']}”")
@@ -207,7 +223,7 @@ def bulk():
     if not task_ids:
         flash("No tasks were selected.", "error")
         return redirect(request.referrer or url_for("tasks.index"))
-    if status not in ("open", "in_progress", "blocked", "completed", "cancelled"):
+    if status not in TASK_STATUSES:
         abort(400)
 
     as_of = date.today().isoformat()
