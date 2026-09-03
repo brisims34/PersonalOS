@@ -208,6 +208,18 @@ def set_workstream_folder(workstream_id, folder_path):
     db.commit()
 
 
+def archive_workstream(workstream_id, archived=True):
+    """Archive, never delete — and the folder on disk is left exactly as it is."""
+    db = get_db()
+    stamp = "datetime('now')" if archived else "NULL"
+    cursor = db.execute(
+        f"UPDATE workstreams SET archived_at = {stamp}, updated_at = datetime('now') WHERE id = ?",
+        (workstream_id,),
+    )
+    db.commit()
+    return cursor.rowcount
+
+
 # --- locations --------------------------------------------------------------
 
 
@@ -397,4 +409,24 @@ def project_team(project_id):
         "  AND pe.archived_at IS NULL "
         "ORDER BY l.sort_order DESC, pe.full_name",
         (project_id,),
+    ).fetchall()
+
+
+def workstream_team(workstream_id):
+    """People linked to the workstream, plus whoever holds a named role on it.
+
+    Mirrors project_team() with source_type='workstream' — the same free-text
+    entity_links role vocabulary as projects, so the two features converge in
+    behavior once the parallel project-Team-tab fixes land.
+    """
+    return get_db().execute(
+        "SELECT DISTINCT pe.id, pe.full_name, pe.email, pe.job_title, "
+        "       l.label AS level_label, el.link_label "
+        "FROM entity_links el "
+        "JOIN people pe ON pe.id = el.target_id "
+        "LEFT JOIN person_levels l ON l.id = pe.level_id "
+        "WHERE el.source_type = 'workstream' AND el.source_id = ? AND el.target_type = 'person' "
+        "  AND pe.archived_at IS NULL "
+        "ORDER BY l.sort_order DESC, pe.full_name",
+        (workstream_id,),
     ).fetchall()

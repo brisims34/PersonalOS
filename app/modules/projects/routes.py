@@ -282,6 +282,8 @@ def workstream(workstream_id):
         inbound=inbound,
         outbound=outbound,
         resources=models.work_resources(workstream_id=workstream_id),
+        team=models.workstream_team(workstream_id),
+        people=people_models.list_people(limit=1000),
         folder=folders.folder_summary(record["folder_path"]),
         related_records=links.related("workstream", workstream_id),
         trail=activity.for_entity("workstream", workstream_id, limit=15),
@@ -289,6 +291,73 @@ def workstream(workstream_id):
                 (record["project_name"], url_for("projects.detail", project_id=record["project_id"])),
                 record["name"]],
     )
+
+
+@bp.get("/workstreams/<int:workstream_id>/edit")
+def edit_workstream(workstream_id):
+    record = models.get_workstream(workstream_id)
+    if record is None:
+        abort(404)
+    return render_template(
+        "modules/projects/workstream_edit.html",
+        workstream=record,
+        people=people_models.list_people(limit=1000),
+        crumbs=[CRUMB,
+                (record["project_name"], url_for("projects.detail", project_id=record["project_id"])),
+                (record["name"], url_for("projects.workstream", workstream_id=workstream_id)),
+                "Edit"],
+    )
+
+
+@bp.post("/workstreams/<int:workstream_id>/edit")
+def update_workstream(workstream_id):
+    record = models.get_workstream(workstream_id)
+    if record is None:
+        abort(404)
+
+    fields = _form_fields(request.form, models.WORKSTREAM_WRITABLE)
+    if not fields.get("name"):
+        flash("A workstream needs a name.", "error")
+        return redirect(url_for("projects.edit_workstream", workstream_id=workstream_id))
+
+    models.update_workstream(workstream_id, fields)
+    updated = models.get_workstream(workstream_id)
+    activity.log("workstream", workstream_id, "updated", f"Updated {updated['name']}",
+                 {"fields": sorted(fields)})
+    flash(f"{updated['name']} updated.", "success")
+    return redirect(url_for("projects.workstream", workstream_id=workstream_id))
+
+
+@bp.post("/workstreams/<int:workstream_id>/archive")
+def archive_workstream(workstream_id):
+    record = models.get_workstream(workstream_id)
+    if record is None:
+        abort(404)
+    restoring = record["archived_at"] is not None
+    models.archive_workstream(workstream_id, archived=not restoring)
+    action = "restored" if restoring else "archived"
+    activity.log("workstream", workstream_id, action, f"{action.title()} {record['name']}")
+    flash(
+        f"{record['name']} {action}. "
+        + ("It is back in the active list." if restoring
+           else "Its folder and notes are kept — nothing was deleted."),
+        "success",
+    )
+    return redirect(url_for("projects.workstream", workstream_id=workstream_id))
+
+
+@bp.post("/workstreams/<int:workstream_id>/team")
+def add_workstream_team_member(workstream_id):
+    person_id = request.form.get("person_id", type=int)
+    if not person_id or models.get_workstream(workstream_id) is None:
+        abort(400)
+    person = people_models.get_person(person_id)
+    links.link("workstream", workstream_id, "person", person_id,
+               request.form.get("role") or None)
+    activity.log("workstream", workstream_id, "updated",
+                 f"Linked {person['full_name']} to the workstream")
+    flash(f"{person['full_name']} linked to this workstream.", "success")
+    return redirect(url_for("projects.workstream", workstream_id=workstream_id))
 
 
 # --- locations, resources, dependencies -------------------------------------

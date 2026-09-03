@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ workstream.name }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Edit {{ workstream.name }}</h1>
+    <p class="pos-page-subtitle">
+      Part of <strong>{{ workstream.project_name }}</strong>. The folder on disk keeps
+      its current name — renaming here does not move it.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('projects.update_workstream', workstream_id=workstream.id) }}">
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Identity</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="name">Workstream name <span aria-hidden="true">*</span></label>
+        <input type="text" id="name" name="name" required size="36" value="{{ workstream.name }}">
+      </div>
+      <div class="pos-field">
+        <label for="lead_person_id">Lead</label>
+        <select id="lead_person_id" name="lead_person_id">
+          <option value="">—</option>
+          {% for p in people %}
+          <option value="{{ p.id }}" {% if workstream.lead_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field"><label for="status">Status</label>
+        <select id="status" name="status">
+          {% for value in ['planned','active','on_hold','completed','cancelled'] %}
+          <option value="{{ value }}" {% if workstream.status == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+          {% endfor %}
+        </select></div>
+    </div>
+    <div class="pos-field pos-mt-3">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" size="80" value="{{ workstream.description or '' }}">
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Dates and budget</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="baseline_start">Baseline start</label>
+        <input type="date" id="baseline_start" name="baseline_start" value="{{ workstream.baseline_start or '' }}"></div>
+      <div class="pos-field"><label for="baseline_end">Baseline end</label>
+        <input type="date" id="baseline_end" name="baseline_end" value="{{ workstream.baseline_end or '' }}"></div>
+      <div class="pos-field"><label for="forecast_start">Forecast start</label>
+        <input type="date" id="forecast_start" name="forecast_start" value="{{ workstream.forecast_start or '' }}"></div>
+      <div class="pos-field"><label for="forecast_end">Forecast end</label>
+        <input type="date" id="forecast_end" name="forecast_end" value="{{ workstream.forecast_end or '' }}"></div>
+      <div class="pos-field"><label for="budget_hours">Budget hours</label>
+        <input type="number" step="0.5" min="0" id="budget_hours" name="budget_hours"
+               value="{{ workstream.budget_hours if workstream.budget_hours is not none else '' }}"></div>
+    </div>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save changes</button>
+    <a class="pos-btn" href="{{ url_for('projects.workstream', workstream_id=workstream.id) }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

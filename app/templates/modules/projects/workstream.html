@@ -22,9 +22,19 @@
 {% endblock %}
 
 {% block secondary_actions %}
+<a class="pos-btn" href="{{ url_for('projects.edit_workstream', workstream_id=workstream.id) }}" data-pos-edit>Edit</a>
 <a class="pos-btn" href="{{ url_for('projects.detail', project_id=workstream.project_id, tab='workstreams') }}">
   All workstreams
 </a>
+{% endblock %}
+
+{% block more_actions %}
+<form method="post" action="{{ url_for('projects.archive_workstream', workstream_id=workstream.id) }}"
+      onsubmit="return confirm('{{ 'Restore' if workstream.archived_at else 'Archive' }} {{ workstream.name }}? The folder on disk is left exactly as it is.');">
+  <button type="submit" class="pos-btn {% if not workstream.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if workstream.archived_at else 'Archive' }}
+  </button>
+</form>
 {% endblock %}
 
 {% block body %}
@@ -70,6 +80,44 @@
     {% endif %}
   </section>
 </div>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Team ({{ team | length }})</h2>
+  {% if team %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Name</th><th scope="col">Level</th><th scope="col">Job title</th>
+               <th scope="col">Role on this workstream</th></tr></thead>
+    <tbody>
+      {% for row in team %}
+      <tr>
+        <td>{{ person_link(row.id, row.full_name) }}</td>
+        <td class="pos-small">{{ row.level_label or '—' }}</td>
+        <td class="pos-small">{{ row.job_title or '—' }}</td>
+        <td class="pos-small">{{ row.link_label or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='Nobody linked yet',
+            body='Linking people here records who holds which role on this workstream, distinct from the project team.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+
+  <form method="post" action="{{ url_for('projects.add_workstream_team_member', workstream_id=workstream.id) }}"
+        class="pos-filter-bar pos-mt-3">
+    <div class="pos-field"><label for="wtp">Person</label>
+      <select id="wtp" name="person_id" required>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.full_name }}{% if p.level_label %} — {{ p.level_label }}{% endif %}</option>{% endfor %}
+      </select></div>
+    <div class="pos-field"><label for="wtr">Role</label>
+      <input type="text" id="wtr" name="role" placeholder="e.g. Task Owner"></div>
+    <div class="pos-field pos-field-actions">
+      <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Link to workstream</button>
+    </div>
+  </form>
+</section>
 
 <div class="pos-grid-2">
   <section class="pos-panel">
