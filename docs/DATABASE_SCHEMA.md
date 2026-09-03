@@ -37,23 +37,24 @@ Migration number tracks build phase. Each table is created by exactly one migrat
 | `0005_notes.sql` | 3 | Notes, note links, FTS5, vault roots |
 | `0006_tasks.sql` | 4 | Tasks, recurrences |
 | `0007_imports.sql` | 1 | **Import batches** — the ledger of every file loaded
-| `0008_calendar.sql` | 5 | Calendar events, occurrences, exceptions |
-| `0009_meetings.sql` | 6 | Meetings, attendees, Outlook sync log |
-| `0010_intake.sql` | 7 | Emails, recipients, contact candidates, drafts, extracted dates |
-| `0011_milestones.sql` | 8 | Milestones, baselines, status updates |
-| `0012_financials.sql` | 9 | **Fee types, fee rules, project fees**, budget lines, expenses, time entries, import batches |
-| `0013_smartsheet.sql` | 10 | Sources, sync runs, pipeline opportunities |
-| `0014_assignments.sql` | 11 | Assignments, extensions, weekly allocations |
-| `0015_skills.sql` | 12 | Skills, person skills, staffing requirements |
-| `0016_scenarios.sql` | 13 | Staffing scenarios, alert dismissals |
-| `0017_governance.sql` | 14 | Risks/assumptions/issues, decisions, stakeholders, change requests |
-| `0018_comms.sql` | 15 | Communications plan items |
-| `0019_templates.sql` | 16 | Project templates, template imports |
-| `0020_performance.sql` | 17 | Cycles, tracks, items |
-| `0021_training.sql` | 18 | Catalog, requirements, records, plans |
-| `0022_innovation.sql` | 19 | Network members, ideas, contributions |
-| `0023_ai.sql` | 20 | Providers, models, policy, jobs, runs, embeddings |
-| `0024_quicksteps.sql` | 23 | Quick steps, quick step runs |
+| `0008_team_roles.sql` | 2 | Widens `entity_links` to allow more than one role per person per project; seeds the `team_role` vocabulary |
+| `0009_calendar.sql` | 5 | Calendar events, occurrences, exceptions |
+| `0010_meetings.sql` | 6 | Meetings, attendees, Outlook sync log |
+| `0011_intake.sql` | 7 | Emails, recipients, contact candidates, drafts, extracted dates |
+| `0012_milestones.sql` | 8 | Milestones, baselines, status updates |
+| `0013_financials.sql` | 9 | **Fee types, fee rules, project fees**, budget lines, expenses, time entries, import batches |
+| `0014_smartsheet.sql` | 10 | Sources, sync runs, pipeline opportunities |
+| `0015_assignments.sql` | 11 | Assignments, extensions, weekly allocations |
+| `0016_skills.sql` | 12 | Skills, person skills, staffing requirements |
+| `0017_scenarios.sql` | 13 | Staffing scenarios, alert dismissals |
+| `0018_governance.sql` | 14 | Risks/assumptions/issues, decisions, stakeholders, change requests |
+| `0019_comms.sql` | 15 | Communications plan items |
+| `0020_templates.sql` | 16 | Project templates, template imports |
+| `0021_performance.sql` | 17 | Cycles, tracks, items |
+| `0022_training.sql` | 18 | Catalog, requirements, records, plans |
+| `0023_innovation.sql` | 19 | Network members, ideas, contributions |
+| `0024_ai.sql` | 20 | Providers, models, policy, jobs, runs, embeddings |
+| `0025_quicksteps.sql` | 23 | Quick steps, quick step runs |
 
 ---
 
@@ -149,6 +150,7 @@ erDiagram
         int source_id
         string target_type
         int target_id
+        string link_label
     }
     APP_SETTINGS {
         string key PK
@@ -223,7 +225,7 @@ CREATE TABLE config_options (
 CREATE INDEX idx_config_options_set ON config_options(option_set, sort_order);
 ```
 
-**Seeded option sets:** `service_offering`, `project_type`, `portfolio_kind`, `task_type`, `priority`, `rag_status`, `raid_type`, `stakeholder_stance`, `disposition`, `skill_category`, `function`.
+**Seeded option sets:** `service_offering`, `project_type`, `portfolio_kind`, `task_type`, `priority`, `rag_status`, `raid_type`, `stakeholder_stance`, `disposition`, `skill_category`, `function`. `team_role` is added by `0008_team_roles.sql` (§0008).
 
 ### module_registry
 
@@ -280,6 +282,8 @@ CREATE TABLE entity_links (
 CREATE INDEX idx_links_source ON entity_links(source_type, source_id);
 CREATE INDEX idx_links_target ON entity_links(target_type, target_id);
 ```
+
+**As originally created.** `0008_team_roles.sql` (§0008) later widens the `UNIQUE` constraint to `(source_type, source_id, target_type, target_id, link_label)` via SQLite's table-rebuild pattern, so the same pair of entities can carry more than one link with a different `link_label` — a person holding two roles on the same project, for instance. The columns are unchanged; only the constraint moved.
 
 **Direction convention — the linking subject is always the source.** Linking a note to a project stores `('note', n, 'project', p)`.
 
@@ -1333,7 +1337,67 @@ The unique constraint makes re-importing an identical file a no-op.
 
 ---
 
-# 0008 — Calendar
+# 0008 — Team Roles
+
+```mermaid
+erDiagram
+    ENTITY_LINKS {
+        int id PK
+        string source_type
+        int source_id
+        string target_type
+        int target_id
+        string link_label
+    }
+    CONFIG_OPTIONS {
+        int id PK
+        string option_set
+        string value
+    }
+```
+
+A fix, not a new phase: the Projects → Team tab links a person to a project through `entity_links` (`source_type='project', target_type='person'`), using `link_label` as the free-text role. The original `UNIQUE (source_type, source_id, target_type, target_id)` from §0001 counted `link_label` as irrelevant, so re-linking the same person under a second role hit `INSERT OR IGNORE` and silently did nothing — the person could hold at most one role, ever, on a given project. This migration widens the constraint and gives the role field a controlled vocabulary, matching the pattern every other categorical field in the app already uses (`config_options` + `config.options()`).
+
+SQLite has no `ALTER TABLE ... ADD CONSTRAINT`, so the constraint change is the standard rebuild: create the new shape under a temporary name, copy every row across unchanged, drop the old table, rename the new one into place, then recreate its indexes. No row is dropped or altered — only the constraint they are checked against.
+
+```sql
+CREATE TABLE entity_links_new (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT NOT NULL,
+    source_id   INTEGER NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id   INTEGER NOT NULL,
+    link_label  TEXT,
+    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (source_type, source_id, target_type, target_id, link_label)
+);
+
+INSERT INTO entity_links_new (id, source_type, source_id, target_type, target_id, link_label, created_at)
+SELECT id, source_type, source_id, target_type, target_id, link_label, created_at FROM entity_links;
+
+DROP TABLE entity_links;
+
+ALTER TABLE entity_links_new RENAME TO entity_links;
+
+CREATE INDEX IF NOT EXISTS idx_links_source ON entity_links(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_links_target ON entity_links(target_type, target_id);
+
+INSERT INTO config_options (option_set, value, label, sort_order) VALUES
+ ('team_role', 'Project Lead Partner',  'Project Lead Partner',  10),
+ ('team_role', 'Project Lead Director', 'Project Lead Director', 20),
+ ('team_role', 'Engagement Manager',    'Engagement Manager',    30),
+ ('team_role', 'Workstream Lead',       'Workstream Lead',       40),
+ ('team_role', 'Task Owner',            'Task Owner',            50),
+ ('team_role', 'Other',                 'Other',                 60);
+```
+
+`idx_links_source` / `idx_links_target` are recreated `IF NOT EXISTS` purely so this block stays safe to re-read against a database where the rebuild already ran — the real migration runs the `DROP TABLE` first, so the names are always free by the time it reaches them.
+
+**Numbering note.** Inserting this ahead of the already-documented Phase 5+ migrations shifted `0008_calendar.sql` through `0024_quicksteps.sql` up by one, to `0009` through `0025`. This mirrors decision **B9** in `DESIGN_DECISIONS.md` (`import_batches` moving from 0011 to 0007) — safe because none of the shifted migrations exist as files yet, so no database has ever recorded those version numbers. See **B11** in `DESIGN_DECISIONS.md`.
+
+---
+
+# 0009 — Calendar
 
 ```mermaid
 erDiagram
@@ -1443,7 +1507,7 @@ CREATE TABLE calendar_exceptions (
 
 ---
 
-# 0009 — Meetings
+# 0010 — Meetings
 
 ```mermaid
 erDiagram
@@ -1558,7 +1622,7 @@ CREATE INDEX idx_outlook_sync_created ON outlook_sync_log(created_at DESC);
 
 ---
 
-# 0010 — Intake
+# 0011 — Intake
 
 ```mermaid
 erDiagram
@@ -1718,7 +1782,7 @@ CREATE INDEX idx_extracted_source ON extracted_dates(source_type, source_id);
 
 ---
 
-# 0011 — Milestones & Baselines
+# 0012 — Milestones & Baselines
 
 ```mermaid
 erDiagram
@@ -1827,7 +1891,7 @@ CREATE INDEX idx_status_updates ON project_status_updates(project_id, update_dat
 
 ---
 
-# 0012 — Financials
+# 0013 — Financials
 
 ```mermaid
 erDiagram
@@ -2055,7 +2119,7 @@ Rates are resolved at `work_date` on insert, so hours before and after a promoti
 
 ---
 
-# 0013 — Smartsheet
+# 0014 — Smartsheet
 
 ```mermaid
 erDiagram
@@ -2159,7 +2223,7 @@ CREATE INDEX idx_pipeline_stage ON pipeline_opportunities(stage, est_start);
 
 ---
 
-# 0014 — Assignments
+# 0015 — Assignments
 
 ```mermaid
 erDiagram
@@ -2281,7 +2345,7 @@ CREATE INDEX idx_weekalloc ON weekly_allocations(week_start, person_id);
 
 ---
 
-# 0015 — Skills & Staffing Requirements
+# 0016 — Skills & Staffing Requirements
 
 ```mermaid
 erDiagram
@@ -2400,7 +2464,7 @@ CREATE INDEX idx_staffreq_project ON staffing_requirements(project_id, start_dat
 
 ---
 
-# 0016 — Scenarios & Alerts
+# 0017 — Scenarios & Alerts
 
 ### staffing_scenarios
 
@@ -2434,7 +2498,7 @@ CREATE TABLE alert_dismissals (
 
 ---
 
-# 0017 — Governance
+# 0018 — Governance
 
 ```mermaid
 erDiagram
@@ -2604,7 +2668,7 @@ An approved change request is what legitimately creates a new baseline version.
 
 ---
 
-# 0018 — Communications Plan
+# 0019 — Communications Plan
 
 ### comms_plan_items
 
@@ -2630,7 +2694,7 @@ Each active item with an `rrule` generates a PersonalOS-owned calendar event.
 
 ---
 
-# 0019 — Templates
+# 0020 — Templates
 
 ```mermaid
 erDiagram
@@ -2708,7 +2772,7 @@ CREATE INDEX idx_tmpl_imports ON template_imports(project_id, imported_at DESC);
 
 ---
 
-# 0020 — Performance
+# 0021 — Performance
 
 ```mermaid
 erDiagram
@@ -2816,7 +2880,7 @@ CREATE INDEX idx_perf_items ON performance_items(track_id, item_type, item_date)
 
 ---
 
-# 0021 — Training
+# 0022 — Training
 
 ```mermaid
 erDiagram
@@ -2861,7 +2925,7 @@ erDiagram
     }
 ```
 
-The `SKILLS → TRAINING_CATALOG` edge closes the loop opened in 0014: an unmet project skill requirement becomes a training requirement with `source = 'skill_gap'`, and completing it writes a `training_records` row that raises the person's `person_skills` proficiency.
+The `SKILLS → TRAINING_CATALOG` edge closes the loop opened in 0015: an unmet project skill requirement becomes a training requirement with `source = 'skill_gap'`, and completing it writes a `training_records` row that raises the person's `person_skills` proficiency.
 
 ### training_catalog
 
@@ -2937,7 +3001,7 @@ CREATE INDEX idx_train_plan ON training_plans(person_id, status);
 
 ---
 
-# 0022 — Innovation
+# 0023 — Innovation
 
 Innovation *initiatives* are `projects` in the Innovation portfolio. These tables cover the network and the pre-project idea funnel.
 
@@ -3032,7 +3096,7 @@ CREATE INDEX idx_contrib_person ON innovation_contributions(person_id, contribut
 
 ---
 
-# 0023 — AI
+# 0024 — AI
 
 ```mermaid
 erDiagram
@@ -3248,7 +3312,7 @@ Float32 blobs scored with a numpy cosine pass. For a personal vault this is sub-
 
 ---
 
-# 0024 — Quick Steps
+# 0025 — Quick Steps
 
 ### quick_steps
 
@@ -3286,4 +3350,4 @@ CREATE TABLE quick_step_runs (
 
 ## Forward-Reference Note
 
-`time_entries.import_batch_id` references `import_batches`, and `assignments.requirement_id` / `assignments.scenario_id` reference tables created in later migrations. SQLite does not verify foreign key targets at table-creation time, and these columns are nullable and unused until their target migration runs. `0014` and `0015` are the migrations that make them meaningful; no `ALTER TABLE` is required.
+`time_entries.import_batch_id` references `import_batches`, and `assignments.requirement_id` / `assignments.scenario_id` reference tables created in later migrations. SQLite does not verify foreign key targets at table-creation time, and these columns are nullable and unused until their target migration runs. `0015` and `0016` are the migrations that make them meaningful; no `ALTER TABLE` is required.

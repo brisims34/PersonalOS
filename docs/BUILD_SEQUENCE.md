@@ -343,7 +343,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 5 — Calendar Engine
 
-**Migration:** `0008_calendar.sql`
+**Migration:** `0009_calendar.sql`
 
 **Build**
 
@@ -366,7 +366,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 6 — Outlook Calendar & Meetings
 
-**Migration:** `0009_meetings.sql`
+**Migration:** `0010_meetings.sql`
 
 **Build**
 
@@ -392,7 +392,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 7 — Email Intake, GAL Sync & Draft Center
 
-**Migration:** `0010_intake.sql`
+**Migration:** `0011_intake.sql`
 
 **Build**
 
@@ -416,7 +416,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 8 — Milestones, Baselines & Portfolio Timeline
 
-**Migration:** `0011_milestones.sql`
+**Migration:** `0012_milestones.sql`
 
 **Build**
 
@@ -440,7 +440,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 9 — Rates, Budgets & Timesheet Import
 
-**Migration:** `0012_financials.sql`
+**Migration:** `0013_financials.sql`
 
 **Build**
 
@@ -477,7 +477,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 10 — Smartsheet Framework & Pipeline
 
-**Migration:** `0013_smartsheet.sql`
+**Migration:** `0014_smartsheet.sql`
 
 **Build**
 
@@ -501,7 +501,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 11 — Assignments & Resource Horizon
 
-**Migration:** `0014_assignments.sql`
+**Migration:** `0015_assignments.sql`
 
 **Build**
 
@@ -525,7 +525,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 12 — Skills, Staffing Requirements & Coverage
 
-**Migration:** `0015_skills.sql`
+**Migration:** `0016_skills.sql`
 
 **Build**
 
@@ -547,7 +547,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 13 — Master Staffing Board, Morning Report & Scenarios
 
-**Migration:** `0016_scenarios.sql`
+**Migration:** `0017_scenarios.sql`
 
 **Build**
 
@@ -578,7 +578,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 14 — RAID, Decisions, Stakeholders & Change Control
 
-**Migration:** `0017_governance.sql`
+**Migration:** `0018_governance.sql`
 
 **Build**
 
@@ -599,7 +599,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 15 — Communications Plan & Status Reports
 
-**Migration:** `0018_comms.sql`
+**Migration:** `0019_comms.sql`
 
 **Build**
 
@@ -617,7 +617,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 16 — Template Library
 
-**Migration:** `0019_templates.sql`
+**Migration:** `0020_templates.sql`
 
 **Build**
 
@@ -645,7 +645,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 17 — Performance Management
 
-**Migration:** `0020_performance.sql`
+**Migration:** `0021_performance.sql`
 
 **Build**
 
@@ -665,7 +665,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 18 — Training
 
-**Migration:** `0021_training.sql`
+**Migration:** `0022_training.sql`
 
 **Build**
 
@@ -685,7 +685,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 19 — Innovation Network
 
-**Migration:** `0022_innovation.sql`
+**Migration:** `0023_innovation.sql`
 
 **Build**
 
@@ -705,7 +705,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 20 — AI Infrastructure
 
-**Migration:** `0023_ai.sql`
+**Migration:** `0024_ai.sql`
 
 **Prerequisite:** run `preflight.py` on the Windows machine and confirm the wheels install without a compiler. **Do not start this phase until preflight passes.**
 
@@ -775,7 +775,7 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 
 ## Phase 23 — Quick Steps *(nice-to-have tier)*
 
-**Migration:** `0024_quicksteps.sql`
+**Migration:** `0025_quicksteps.sql`
 
 **Build**
 

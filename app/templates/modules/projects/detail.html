@@ -222,7 +222,7 @@
   {% if team %}
   <table class="pos-table pos-table-compact">
     <thead><tr><th scope="col">Name</th><th scope="col">Level</th><th scope="col">Job title</th>
-               <th scope="col">Role on this project</th></tr></thead>
+               <th scope="col">Role on this project</th><th scope="col">Actions</th></tr></thead>
     <tbody>
       {% for row in team %}
       <tr>
@@ -230,6 +230,14 @@
         <td class="pos-small">{{ row.level_label or '—' }}</td>
         <td class="pos-small">{{ row.job_title or '—' }}</td>
         <td class="pos-small">{{ row.link_label or '—' }}</td>
+        <td>
+          <form method="post"
+                action="{{ url_for('projects.remove_team_member', project_id=project.id, person_id=row.id) }}"
+                onsubmit="return confirm('Remove {{ row.full_name }}{% if row.link_label %} as {{ row.link_label }}{% endif %} from this project? Their other roles on this project, if any, are left alone.');">
+            <input type="hidden" name="role" value="{{ row.link_label or '' }}">
+            <button type="submit" class="pos-btn pos-btn-danger">Remove</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -248,7 +256,12 @@
         {% for p in people %}<option value="{{ p.id }}">{{ p.full_name }}{% if p.level_label %} — {{ p.level_label }}{% endif %}</option>{% endfor %}
       </select></div>
     <div class="pos-field"><label for="tr">Role</label>
-      <input type="text" id="tr" name="role" placeholder="e.g. Workstream Lead"></div>
+      <select id="tr" name="role">
+        <option value="">—</option>
+        {% for option in team_roles %}
+        <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+      </select></div>
     <div class="pos-field pos-field-actions">
       <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Link to project</button>
     </div>
