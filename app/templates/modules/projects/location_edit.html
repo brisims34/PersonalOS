@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ location.name }}{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Edit {{ location.name }}</h1>
+    <p class="pos-page-subtitle">
+      A location is a physical site, not a project — editing it here changes
+      what every project linked to this site sees.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('projects.update_location', location_id=location.id) }}">
+  {% if project_id %}<input type="hidden" name="project_id" value="{{ project_id }}">{% endif %}
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Identity</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="name">Site name <span aria-hidden="true">*</span></label>
+        <input type="text" id="name" name="name" required size="36" value="{{ location.name }}">
+      </div>
+      <div class="pos-field">
+        <label for="location_kind">Kind</label>
+        <select id="location_kind" name="location_kind">
+          {% for value in ['client_site','firm_office','coworking','remote','other'] %}
+          <option value="{{ value }}" {% if location.location_kind == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="organization">Organization</label>
+        <input type="text" id="organization" name="organization" value="{{ location.organization or '' }}">
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Address</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field"><label for="address_line1">Address line 1</label>
+        <input type="text" id="address_line1" name="address_line1" size="30" value="{{ location.address_line1 or '' }}"></div>
+      <div class="pos-field"><label for="address_line2">Address line 2</label>
+        <input type="text" id="address_line2" name="address_line2" size="30" value="{{ location.address_line2 or '' }}"></div>
+      <div class="pos-field"><label for="city">City</label>
+        <input type="text" id="city" name="city" value="{{ location.city or '' }}"></div>
+      <div class="pos-field"><label for="state_province">State / province</label>
+        <input type="text" id="state_province" name="state_province" value="{{ location.state_province or '' }}"></div>
+      <div class="pos-field"><label for="postal_code">Postal code</label>
+        <input type="text" id="postal_code" name="postal_code" size="10" value="{{ location.postal_code or '' }}"></div>
+      <div class="pos-field"><label for="country">Country</label>
+        <input type="text" id="country" name="country" value="{{ location.country or '' }}"></div>
+      <div class="pos-field"><label for="building">Building</label>
+        <input type="text" id="building" name="building" size="8" value="{{ location.building or '' }}"></div>
+      <div class="pos-field"><label for="floor">Floor</label>
+        <input type="text" id="floor" name="floor" size="5" value="{{ location.floor or '' }}"></div>
+      <div class="pos-field"><label for="room">Room</label>
+        <input type="text" id="room" name="room" size="6" value="{{ location.room or '' }}"></div>
+      <div class="pos-field"><label for="map_url">Map URL</label>
+        <input type="text" id="map_url" name="map_url" size="30" value="{{ location.map_url or '' }}"></div>
+    </div>
+  </section>
+
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Access and logistics</h2>
+    <p class="pos-muted pos-small">
+      What a new joiner cannot find out for themselves: badge requirements, escort
+      rules, parking, hours and transit.
+    </p>
+    <div class="pos-field pos-mt-3">
+      <label for="access_notes">Access notes</label>
+      <input type="text" id="access_notes" name="access_notes" size="80" value="{{ location.access_notes or '' }}">
+    </div>
+    <div class="pos-field pos-mt-3">
+      <label for="logistics_notes">Logistics notes</label>
+      <input type="text" id="logistics_notes" name="logistics_notes" size="80" value="{{ location.logistics_notes or '' }}">
+    </div>
+    <div class="pos-filter-bar pos-mt-3">
+      <div class="pos-field">
+        <label for="site_contact_person_id">Site contact</label>
+        <select id="site_contact_person_id" name="site_contact_person_id">
+          <option value="">—</option>
+          {% for p in people %}
+          <option value="{{ p.id }}" {% if location.site_contact_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="pos-field pos-mt-3">
+      <label for="notes">Notes</label>
+      <input type="text" id="notes" name="notes" size="80" value="{{ location.notes or '' }}">
+    </div>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save changes</button>
+    {% if project_id %}
+    <a class="pos-btn" href="{{ url_for('projects.detail', project_id=project_id, tab='locations') }}">Cancel</a>
+    {% else %}
+    <a class="pos-btn" href="{{ url_for('projects.index') }}">Cancel</a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

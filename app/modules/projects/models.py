@@ -227,6 +227,18 @@ def locations(project_id=None):
     ).fetchall()
 
 
+def location_linked_to_project(project_id, location_id):
+    """True only if this exact site is linked to this exact project — guards
+    against a tampered or stale project_id being used to route a flash/redirect
+    at an unrelated project after an edit."""
+    row = get_db().execute(
+        "SELECT 1 FROM entity_links WHERE source_type = 'project' AND source_id = ? "
+        "AND target_type = 'location' AND target_id = ?",
+        (project_id, location_id),
+    ).fetchone()
+    return row is not None
+
+
 LOCATION_WRITABLE = (
     "name", "location_kind", "organization", "address_line1", "address_line2",
     "city", "state_province", "postal_code", "country", "building", "floor",
@@ -245,6 +257,31 @@ def create_location(fields):
     )
     db.commit()
     return cursor.lastrowid
+
+
+def get_location(location_id):
+    return get_db().execute(
+        "SELECT l.*, p.full_name AS site_contact_name FROM locations l "
+        "LEFT JOIN people p ON p.id = l.site_contact_person_id "
+        "WHERE l.id = ? AND l.archived_at IS NULL",
+        (location_id,),
+    ).fetchone()
+
+
+def update_location(location_id, fields):
+    """A location's own fields — address, access notes, contact. Not the link
+    to any particular project, which lives in entity_links (CLAUDE.md rule 9)."""
+    payload = {k: v for k, v in fields.items() if k in LOCATION_WRITABLE}
+    if not payload:
+        return 0
+    assignments = ", ".join(f"{column} = ?" for column in payload)
+    db = get_db()
+    cursor = db.execute(
+        f"UPDATE locations SET {assignments}, updated_at = datetime('now') WHERE id = ?",
+        list(payload.values()) + [location_id],
+    )
+    db.commit()
+    return cursor.rowcount
 
 
 # --- work resources ---------------------------------------------------------
