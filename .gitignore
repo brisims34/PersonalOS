@@ -28,6 +28,8 @@ template_library/*
 # Python
 .venv/
 venv/
+.venv_verify/
+.worktrees/
 __pycache__/
 *.py[cod]
 *.egg-info/
