@@ -1,3 +1,5 @@
+import sqlite3
+
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
@@ -94,3 +96,36 @@ def archive(portfolio_id):
         "success",
     )
     return redirect(url_for("portfolios.detail", portfolio_id=portfolio_id))
+
+
+INLINE_FIELDS = {"portfolio_kind", "sort_order"}
+
+
+@bp.post("/<int:portfolio_id>/field")
+def update_field(portfolio_id):
+    portfolio = models.get_portfolio(portfolio_id)
+    if portfolio is None:
+        abort(404)
+    if portfolio["archived_at"] is not None:
+        return {"ok": False, "error": "This portfolio is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value")
+    if field not in INLINE_FIELDS:
+        return {"ok": False, "error": f"\"{field}\" can't be edited inline here."}
+
+    if field == "sort_order":
+        try:
+            value = int(value) if value else 0
+        except ValueError:
+            return {"ok": False, "error": "Sort order must be a whole number."}
+
+    try:
+        models.update_portfolio(portfolio_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_portfolio(portfolio_id)
+    activity.log("portfolio", portfolio_id, "updated", f"Updated {field} for {updated['name']}")
+    display = str(updated[field]) if updated[field] is not None else ""
+    return {"ok": True, "display": display}
