@@ -382,11 +382,13 @@ def create_work_resource(fields):
 
 
 def update_work_resource(resource_id, fields):
-    # Unlike update_project(), None is dropped rather than written through:
-    # resource_kind/resource_role/label/path_or_url are NOT NULL/CHECK columns,
-    # and a stripped-down or forged POST omitting one must leave it as-is
-    # rather than raising sqlite3.IntegrityError.
-    payload = {k: v for k, v in fields.items() if k in RESOURCE_WRITABLE and v is not None}
+    # Matches update_project()/update_workstream()/update_location(): None is
+    # written through, not dropped, so clearing a nullable FK (owner_person_id)
+    # actually clears it. label/resource_kind/resource_role/path_or_url are
+    # NOT NULL/CHECK columns — an attempt to null one of those raises
+    # sqlite3.IntegrityError, which every caller already catches and surfaces
+    # as an honest error rather than a silent no-op.
+    payload = {k: v for k, v in fields.items() if k in RESOURCE_WRITABLE}
     if not payload:
         return 0
     assignments = ", ".join(f"{column} = ?" for column in payload)
