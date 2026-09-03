@@ -25,7 +25,9 @@
       <td><a href="{{ url_for('portfolios.detail', portfolio_id=row.id) }}">{{ row.name }}</a>
           {% if row.description %}<div class="pos-muted pos-small">{{ row.description }}</div>{% endif %}</td>
       <td data-field="portfolio_kind" data-type="select"
-          data-options="{{ kinds | map(attribute='value') | join(',') }}" tabindex="0">{{ row.portfolio_kind }}</td>
+          data-options="{{ kinds | map(attribute='value') | join(',') }}"
+          data-value="{{ row.portfolio_kind }}" tabindex="0">
+          <span class="pos-badge pos-badge-neutral">{{ row.portfolio_kind }}</span></td>
       <td class="pos-small"><code>projects/{{ row.folder_slug }}/</code></td>
       <td class="pos-num">
         <a class="pos-trace" href="{{ url_for('projects.index', portfolio_id=row.id, status='active') }}">{{ row.active_count | num }}</a>
