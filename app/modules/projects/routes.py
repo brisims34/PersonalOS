@@ -753,11 +753,14 @@ def add_dependency(project_id):
     return redirect(url_for("projects.detail", project_id=project_id, tab="dependencies"))
 
 
+DEPENDENCY_STATUSES = ("identified", "confirmed", "at_risk", "satisfied", "broken")
+
+
 @bp.post("/dependencies/<int:dependency_id>/status")
 def dependency_status(dependency_id):
     status = request.form.get("status")
     project_id = request.form.get("project_id", type=int)
-    if status not in ("identified", "confirmed", "at_risk", "satisfied", "broken"):
+    if status not in DEPENDENCY_STATUSES:
         abort(400)
     models.set_dependency_status(dependency_id, status)
     activity.log("dependency", dependency_id, "updated", f"Dependency marked {status}")
@@ -851,9 +854,18 @@ def update_dependency_field(dependency_id):
             return {"ok": False, "error": "That doesn't look like a valid person."}
         if people_models.get_person(value) is None:
             return {"ok": False, "error": "That person no longer exists."}
+    elif field == "status" and value not in DEPENDENCY_STATUSES:
+        if value is None:
+            return {"ok": False, "error": "A dependency needs a status."}
+        return {"ok": False, "error": f"“{value}” isn't a valid dependency status."}
 
     try:
-        models.update_dependency(dependency_id, {field: value})
+        if field == "status":
+            # status lives outside DEPENDENCY_EDIT_WRITABLE — update_dependency()
+            # would silently no-op it, so it goes through the dedicated setter.
+            models.set_dependency_status(dependency_id, value)
+        else:
+            models.update_dependency(dependency_id, {field: value})
     except sqlite3.Error as exc:
         return {"ok": False, "error": f"Could not save that value: {exc}"}
 
