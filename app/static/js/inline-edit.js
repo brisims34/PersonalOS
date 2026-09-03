@@ -43,7 +43,12 @@
         var opt = document.createElement("option");
         opt.value = String(o.id);
         opt.textContent = o.label;
-        if (String(o.id) === String(currentValue)) opt.selected = true;
+        // For plain selects, match case-insensitively against display text.
+        // For fk-selects, match case-sensitively against data-value id.
+        var shouldSelect = type === "select"
+          ? String(o.id).toLowerCase() === String(currentValue).toLowerCase()
+          : String(o.id) === String(currentValue);
+        if (shouldSelect) opt.selected = true;
         input.appendChild(opt);
       });
     } else {
@@ -154,7 +159,9 @@
         commit();
       } else if (event.key === "Escape") {
         event.preventDefault();
-        cancel();
+        // Only cancel if no commit is already in flight. Once settled=true,
+        // the fetch is in progress and the server's response owns the cell.
+        if (!settled) cancel();
       }
       // Tab is left to the browser's default focus movement; blur (below)
       // performs the commit before focus actually leaves the input.
