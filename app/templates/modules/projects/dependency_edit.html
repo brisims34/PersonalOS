@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Edit dependency{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Edit dependency</h1>
+    <p class="pos-page-subtitle">
+      {{ dependency.title }} — logged on
+      <a href="{{ url_for('projects.detail', project_id=dependency.project_id, tab='dependencies') }}">{{ dependency.project_name }}</a>.
+      Direction and type are fixed once a dependency is logged; what it needs,
+      who owns it and when it is due can still change.
+    </p>
+  </div>
+</header>
+
+<form method="post" action="{{ url_for('projects.edit_dependency', dependency_id=dependency.id) }}">
+  {% if show_archived %}<input type="hidden" name="show_archived" value="1">{% endif %}
+  <section class="pos-panel">
+    <h2 class="pos-panel-heading">Detail</h2>
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="title">What is needed <span aria-hidden="true">*</span></label>
+        <input type="text" id="title" name="title" required size="36" value="{{ dependency.title }}">
+      </div>
+      <div class="pos-field">
+        <label for="criticality">Criticality</label>
+        <select id="criticality" name="criticality">
+          <option value="critical" {% if dependency.criticality == 'critical' %}selected{% endif %}>Critical</option>
+          <option value="important" {% if dependency.criticality == 'important' %}selected{% endif %}>Important</option>
+          <option value="minor" {% if dependency.criticality == 'minor' %}selected{% endif %}>Minor</option>
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="needed_by_date">Needed by</label>
+        <input type="date" id="needed_by_date" name="needed_by_date" value="{{ dependency.needed_by_date or '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="owner_person_id">Owner</label>
+        <select id="owner_person_id" name="owner_person_id">
+          <option value="">—</option>
+          {% for p in people %}
+          <option value="{{ p.id }}" {% if dependency.owner_person_id == p.id %}selected{% endif %}>{{ p.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="pos-field pos-mt-3">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" size="80" value="{{ dependency.description or '' }}">
+    </div>
+    <p class="pos-muted pos-small pos-mt-3">
+      Needed by <strong>{{ dependency.from_name or 'the project' }}</strong>, provided by
+      <strong>{{ dependency.to_name or dependency.external_party or 'unspecified' }}</strong>,
+      type <strong>{{ dependency.dependency_type | replace('_',' ') }}</strong>.
+      Change direction or type by archiving this dependency and logging a new one.
+    </p>
+  </section>
+
+  <div class="pos-page-actions">
+    <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save changes</button>
+    <a class="pos-btn" href="{{ url_for('projects.detail', project_id=dependency.project_id, tab='dependencies', show_archived=1 if show_archived else None) }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -378,15 +378,23 @@
     Dependencies <strong>across</strong> workstreams matter most, because nobody
     owns the gap between two teams by default.
   </p>
+  <p class="pos-small">
+    <a href="{{ url_for('projects.detail', project_id=project.id, tab='dependencies', show_archived=0 if deps_show_archived else 1) }}">
+      {{ 'Hide archived dependencies' if deps_show_archived else 'Show archived dependencies' }}
+    </a>
+  </p>
   {% if deps %}
   <table class="pos-table pos-table-compact">
     <thead><tr><th scope="col">Needs</th><th scope="col">From</th><th scope="col">Provided by</th>
                <th scope="col">Type</th><th scope="col">Criticality</th>
-               <th scope="col">Needed by</th><th scope="col">Status</th></tr></thead>
+               <th scope="col">Owner</th>
+               <th scope="col">Needed by</th><th scope="col">Status</th>
+               <th scope="col">Actions</th></tr></thead>
     <tbody>
       {% for row in deps %}
-      <tr>
-        <td>{{ row.title }}</td>
+      <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+        <td>{{ row.title }}
+            {% if row.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}</td>
         <td class="pos-small">{{ row.from_name or 'the project' }}</td>
         <td class="pos-small">{{ row.to_name or row.external_party or '—' }}
             {% if not row.to_name and row.external_party %}
@@ -396,6 +404,7 @@
           <span class="pos-badge pos-badge-{{ 'danger' if row.criticality == 'critical' else 'warn' if row.criticality == 'important' else 'neutral' }}">
             {{ row.criticality }}</span>
         </td>
+        <td class="pos-small">{{ row.owner_name or '—' }}</td>
         <td>{{ row.needed_by_date | date_long }}</td>
         <td>
           <form method="post" action="{{ url_for('projects.dependency_status', dependency_id=row.id) }}">
@@ -406,6 +415,21 @@
               <option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ value | replace('_',' ') }}</option>
               {% endfor %}
             </select>
+          </form>
+        </td>
+        <td class="pos-small">
+          <a class="pos-btn"
+             href="{{ url_for('projects.edit_dependency', dependency_id=row.id, show_archived=1 if deps_show_archived else None) }}"
+             data-pos-edit>Edit</a>
+          {% set confirm_msg = ('Restore ' if row.archived_at else 'Archive ') ~ '“' ~ row.title ~ '”? '
+              ~ ('It will show in the active dependency list again.' if row.archived_at
+                 else 'It is hidden from the active list, not deleted.') %}
+          <form method="post" action="{{ url_for('projects.archive_dependency', dependency_id=row.id) }}"
+                onsubmit="return confirm({{ confirm_msg | tojson }});">
+            {% if deps_show_archived %}<input type="hidden" name="show_archived" value="1">{% endif %}
+            <button type="submit" class="pos-btn {% if not row.archived_at %}pos-btn-danger{% endif %}">
+              {{ 'Restore' if row.archived_at else 'Archive' }}
+            </button>
           </form>
         </td>
       </tr>

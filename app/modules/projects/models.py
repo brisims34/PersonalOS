@@ -326,20 +326,45 @@ DEPENDENCY_WRITABLE = (
     "status", "owner_person_id", "notes",
 )
 
+# Fields the dedicated edit form may change after creation. Direction
+# (from/to workstream, external party) and type are load-bearing for the
+# RAID union and are deliberately left fixed once logged.
+DEPENDENCY_EDIT_WRITABLE = (
+    "title", "description", "criticality", "needed_by_date", "owner_person_id",
+)
 
-def dependencies(project_id):
-    return get_db().execute(
+
+def dependencies(project_id, include_archived=False):
+    sql = (
         "SELECT d.*, "
         "       fw.name AS from_name, tw.name AS to_name, o.full_name AS owner_name "
         "FROM dependencies d "
         "LEFT JOIN workstreams fw ON fw.id = d.from_workstream_id "
         "LEFT JOIN workstreams tw ON tw.id = d.to_workstream_id "
         "LEFT JOIN people o       ON o.id = d.owner_person_id "
-        "WHERE d.project_id = ? AND d.archived_at IS NULL "
-        "ORDER BY CASE d.criticality WHEN 'critical' THEN 0 WHEN 'important' THEN 1 ELSE 2 END, "
-        "         d.needed_by_date IS NULL, d.needed_by_date",
-        (project_id,),
-    ).fetchall()
+        "WHERE d.project_id = ?"
+    )
+    if not include_archived:
+        sql += " AND d.archived_at IS NULL"
+    sql += (
+        " ORDER BY CASE d.criticality WHEN 'critical' THEN 0 WHEN 'important' THEN 1 ELSE 2 END, "
+        "         d.needed_by_date IS NULL, d.needed_by_date"
+    )
+    return get_db().execute(sql, (project_id,)).fetchall()
+
+
+def get_dependency(dependency_id):
+    return get_db().execute(
+        "SELECT d.*, p.name AS project_name, "
+        "       fw.name AS from_name, tw.name AS to_name, o.full_name AS owner_name "
+        "FROM dependencies d "
+        "JOIN projects p          ON p.id = d.project_id "
+        "LEFT JOIN workstreams fw ON fw.id = d.from_workstream_id "
+        "LEFT JOIN workstreams tw ON tw.id = d.to_workstream_id "
+        "LEFT JOIN people o       ON o.id = d.owner_person_id "
+        "WHERE d.id = ?",
+        (dependency_id,),
+    ).fetchone()
 
 
 def workstream_dependencies(workstream_id):
@@ -377,6 +402,32 @@ def set_dependency_status(dependency_id, status):
     cursor = db.execute(
         "UPDATE dependencies SET status = ?, updated_at = datetime('now') WHERE id = ?",
         (status, dependency_id),
+    )
+    db.commit()
+    return cursor.rowcount
+
+
+def update_dependency(dependency_id, fields):
+    payload = {k: v for k, v in fields.items() if k in DEPENDENCY_EDIT_WRITABLE}
+    if not payload:
+        return 0
+    assignments = ", ".join(f"{column} = ?" for column in payload)
+    db = get_db()
+    cursor = db.execute(
+        f"UPDATE dependencies SET {assignments}, updated_at = datetime('now') WHERE id = ?",
+        list(payload.values()) + [dependency_id],
+    )
+    db.commit()
+    return cursor.rowcount
+
+
+def archive_dependency(dependency_id, archived=True):
+    """Archive, never delete — status history and links stay on the row."""
+    db = get_db()
+    stamp = "datetime('now')" if archived else "NULL"
+    cursor = db.execute(
+        f"UPDATE dependencies SET archived_at = {stamp}, updated_at = datetime('now') WHERE id = ?",
+        (dependency_id,),
     )
     db.commit()
     return cursor.rowcount
