@@ -39,17 +39,20 @@
 <section class="pos-panel">
   <h2 class="pos-panel-heading">Projects ({{ projects | length }})</h2>
   {% if projects %}
-  <table class="pos-table pos-table-compact">
+  <table class="pos-table pos-table-compact" data-edit-base="/projects/{id}/field">
     <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Status</th>
                <th scope="col">RAG</th><th scope="col">Forecast end</th></tr></thead>
     <tbody>
       {% for row in projects %}
-      <tr>
+      <tr data-record-id="{{ row.id }}" data-archived="{{ '1' if row.archived_at else '0' }}">
         <td><a href="{{ url_for('projects.detail', project_id=row.id) }}">{{ row.name }}</a></td>
         <td class="pos-small">{{ row.client_org or '—' }}</td>
-        <td>{{ status_badge(row.status) }}</td>
-        <td>{{ rag_badge(row.rag_status) }}</td>
-        <td>{{ row.forecast_end | date_long }}</td>
+        <td data-field="status" data-type="select" data-options="pipeline,active,on_hold,completed,cancelled"
+            data-value="{{ row.status }}" tabindex="0">{{ status_badge(row.status) }}</td>
+        <td data-field="rag_status" data-type="select" data-options="green,amber,red" data-nullable="1"
+            data-value="{{ row.rag_status or '' }}" tabindex="0">{{ rag_badge(row.rag_status) }}</td>
+        <td data-field="forecast_end" data-type="date" data-value="{{ row.forecast_end or '' }}"
+            tabindex="0">{{ row.forecast_end | date_long }}</td>
       </tr>
       {% endfor %}
     </tbody>

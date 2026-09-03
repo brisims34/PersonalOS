@@ -25,10 +25,17 @@
 
     if (type === "select" || type === "fk-select") {
       input = document.createElement("select");
-      var blank = document.createElement("option");
-      blank.value = "";
-      blank.textContent = "—";
-      input.appendChild(blank);
+      // A blank option only makes sense for nullable columns: every
+      // fk-select (an unset person link is normal) or a plain select that
+      // explicitly opts in with data-nullable="1". Every other plain
+      // select backs a NOT NULL / CHECK-constrained column, so offering a
+      // blank there only produces a save error rather than a real choice.
+      if (type === "fk-select" || td.dataset.nullable === "1") {
+        var blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = "—";
+        input.appendChild(blank);
+      }
 
       var opts;
       if (type === "select") {
@@ -97,7 +104,7 @@
     if (!td.dataset.field) return;
 
     td.dataset.editing = "1";
-    td.dataset.savedText = td.textContent;
+    td.dataset.savedHtml = td.innerHTML;
     clearError(td);
 
     var input = buildInput(td);
@@ -150,7 +157,12 @@
       settled = true;
       td.dataset.editing = "0";
       clearError(td);
-      td.textContent = td.dataset.savedText;
+      // Restore via innerHTML, not textContent: the saved value is the
+      // server's own Jinja-escaped markup (a badge or link) as the browser
+      // already rendered it once, not fresh unescaped input, so re-parsing
+      // it back into the DOM is safe. textContent would flatten a badge or
+      // link to plain text even though nothing was actually edited.
+      td.innerHTML = td.dataset.savedHtml;
     }
 
     input.addEventListener("keydown", function (event) {
@@ -172,6 +184,9 @@
   }
 
   document.addEventListener("click", function (event) {
+    // A cell that renders its value as a link (e.g. a person's name) should
+    // still navigate on click; only the rest of the cell enters edit mode.
+    if (event.target.closest("a")) return;
     var td = event.target.closest("td[data-field]");
     if (!td || td.dataset.editing === "1") return;
     enterEdit(td);
@@ -180,6 +195,7 @@
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") return;
+    if (event.target.closest("a")) return;
     var td = event.target.closest("td[data-field]");
     if (!td || td !== event.target || td.dataset.editing === "1") return;
     event.preventDefault();
