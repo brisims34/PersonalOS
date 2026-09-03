@@ -61,7 +61,7 @@ def detail(project_id):
         team=models.project_team(project_id),
         locations=models.locations(project_id),
         all_locations=models.locations(),
-        resources=models.work_resources(project_id=project_id),
+        resources=models.work_resources(project_id=project_id, include_inactive=True),
         deps=models.dependencies(project_id),
         folder=folders.folder_summary(project["folder_path"]),
         people=people_models.list_people(limit=1000),
@@ -350,6 +350,68 @@ def verify_resources(project_id):
         f"{counts['not_verifiable']} could not be checked because they are URLs.",
         "warning" if counts["missing"] else "success",
     )
+    return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+
+
+def _get_project_resource(project_id, resource_id):
+    """A resource is only ever addressed through its owning project, so a
+    mismatched or unknown pair is a 404, not a redirect to someone else's data."""
+    resource = models.get_work_resource(resource_id)
+    if resource is None or resource["project_id"] != project_id:
+        abort(404)
+    return resource
+
+
+@bp.post("/<int:project_id>/resources/<int:resource_id>/edit")
+def edit_resource(project_id, resource_id):
+    if models.get_project(project_id) is None:
+        abort(404)
+    resource = _get_project_resource(project_id, resource_id)
+
+    fields = _form_fields(request.form, models.RESOURCE_WRITABLE)
+    # Containment (project_id/workstream_id) is never editable from this form —
+    # strip it even if a forged POST includes it, so ownership can't be reassigned.
+    fields.pop("project_id", None)
+    fields.pop("workstream_id", None)
+    if not fields.get("label") or not fields.get("path_or_url"):
+        flash("A work resource needs a label and a path or URL.", "error")
+        return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+
+    models.update_work_resource(resource_id, fields)
+    activity.log("work_resource", resource_id, "updated",
+                 f"Updated work resource {fields['label']}")
+    flash(f"“{fields['label']}” updated.", "success")
+    return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+
+
+@bp.post("/<int:project_id>/resources/<int:resource_id>/deactivate")
+def deactivate_resource(project_id, resource_id):
+    if models.get_project(project_id) is None:
+        abort(404)
+    resource = _get_project_resource(project_id, resource_id)
+
+    models.set_resource_active(resource_id, active=False)
+    activity.log("work_resource", resource_id, "updated",
+                 f"Deactivated work resource {resource['label']}")
+    flash(
+        f"“{resource['label']}” deactivated. It no longer counts toward "
+        "verification and drops out of resource pickers, but its record and "
+        "history are kept — reactivate it any time.",
+        "success",
+    )
+    return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+
+
+@bp.post("/<int:project_id>/resources/<int:resource_id>/reactivate")
+def reactivate_resource(project_id, resource_id):
+    if models.get_project(project_id) is None:
+        abort(404)
+    resource = _get_project_resource(project_id, resource_id)
+
+    models.set_resource_active(resource_id, active=True)
+    activity.log("work_resource", resource_id, "updated",
+                 f"Reactivated work resource {resource['label']}")
+    flash(f"“{resource['label']}” reactivated. It is active again.", "success")
     return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
 
 
