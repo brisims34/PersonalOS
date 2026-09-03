@@ -1,10 +1,11 @@
 {% extends "partials/_object_page.html" %}
-{% from "partials/_macros.html" import status_badge, rag_badge %}
+{% from "partials/_macros.html" import status_badge, rag_badge, tabs %}
 {% block title %}{{ portfolio.name }}{% endblock %}
 
 {% block identity_name %}{{ portfolio.name }}{% endblock %}
 {% block identity_badges %}
 <span class="pos-badge pos-badge-neutral">{{ portfolio.portfolio_kind }}</span>
+{% if portfolio.archived_at %}<span class="pos-badge pos-badge-archived">Archived</span>{% endif %}
 {% endblock %}
 {% block identity_subtitle %}
 {{ projects | length }} project{{ 's' if projects | length != 1 }}
@@ -19,9 +20,24 @@
 <a class="pos-btn" href="{{ url_for('projects.index', portfolio_id=portfolio.id) }}">Filter projects</a>
 {% endblock %}
 
+{% block more_actions %}
+<form method="post" action="{{ url_for('portfolios.archive', portfolio_id=portfolio.id) }}"
+      onsubmit="return confirm('{{ 'Restore' if portfolio.archived_at else 'Archive' }} {{ portfolio.name | replace("'", "\\'") }}? Its projects and folder are all kept — nothing is deleted.');">
+  <button type="submit" class="pos-btn {% if not portfolio.archived_at %}pos-btn-danger{% endif %}">
+    {{ 'Restore' if portfolio.archived_at else 'Archive' }}
+  </button>
+</form>
+{% endblock %}
+
+{% block tabs %}
+{{ tabs(tab_items, tab, url_for('portfolios.detail', portfolio_id=portfolio.id)) }}
+{% endblock %}
+
 {% block body %}
+
+{% if tab == 'projects' %}
 <section class="pos-panel">
-  <h2 class="pos-panel-heading">Projects</h2>
+  <h2 class="pos-panel-heading">Projects ({{ projects | length }})</h2>
   {% if projects %}
   <table class="pos-table pos-table-compact">
     <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Status</th>
@@ -46,6 +62,7 @@
   {% endif %}
 </section>
 
+{% else %}
 <section class="pos-panel">
   <h2 class="pos-panel-heading">Edit</h2>
   <form method="post" action="{{ url_for('portfolios.save') }}" class="pos-filter-bar">
@@ -65,4 +82,6 @@
     folder underneath it.
   </p>
 </section>
+{% endif %}
+
 {% endblock %}

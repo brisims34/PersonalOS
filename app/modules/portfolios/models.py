@@ -54,3 +54,15 @@ def update_portfolio(portfolio_id, fields):
     )
     db.commit()
     return cursor.rowcount
+
+
+def archive_portfolio(portfolio_id, archived=True):
+    """Archive, never delete — projects filed under it and their folders are untouched."""
+    db = get_db()
+    stamp = "datetime('now')" if archived else "NULL"
+    cursor = db.execute(
+        f"UPDATE portfolios SET archived_at = {stamp} WHERE id = ?",
+        (portfolio_id,),
+    )
+    db.commit()
+    return cursor.rowcount

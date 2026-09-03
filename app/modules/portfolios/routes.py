@@ -1,7 +1,7 @@
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
-from app.core import activity, config, paths
+from app.core import activity, config, links, paths
 from app.core.module_registry import guard_blueprint
 from app.core.paths import safe_slug
 from app.modules.projects import models as project_models
@@ -12,6 +12,8 @@ bp = Blueprint("portfolios", __name__, url_prefix="/portfolios")
 guard_blueprint(bp, "portfolios")
 
 CRUMB = ("Portfolios", "/portfolios")
+
+TABS = [("overview", "Overview"), ("projects", "Projects")]
 
 
 @bp.get("/")
@@ -33,7 +35,10 @@ def detail(portfolio_id):
     return render_template(
         "modules/portfolios/detail.html",
         portfolio=portfolio,
+        tab=request.args.get("tab", "overview"),
+        tab_items=TABS,
         projects=project_models.list_projects(portfolio_id=portfolio_id),
+        related_records=links.related("portfolio", portfolio_id),
         trail=activity.for_entity("portfolio", portfolio_id, limit=10),
         crumbs=[CRUMB, portfolio["name"]],
     )
@@ -70,4 +75,22 @@ def save():
             f"projects/{fields['folder_slug']}/.",
             "success",
         )
+    return redirect(url_for("portfolios.detail", portfolio_id=portfolio_id))
+
+
+@bp.post("/<int:portfolio_id>/archive")
+def archive(portfolio_id):
+    portfolio = models.get_portfolio(portfolio_id)
+    if portfolio is None:
+        abort(404)
+    restoring = portfolio["archived_at"] is not None
+    models.archive_portfolio(portfolio_id, archived=not restoring)
+    action = "restored" if restoring else "archived"
+    activity.log("portfolio", portfolio_id, action, f"{action.title()} {portfolio['name']}")
+    flash(
+        f"{portfolio['name']} {action}. "
+        + ("It is back in the active portfolio list." if restoring
+           else "Hidden from active lists — its projects and folder are all kept."),
+        "success",
+    )
     return redirect(url_for("portfolios.detail", portfolio_id=portfolio_id))
