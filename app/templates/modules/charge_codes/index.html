@@ -84,9 +84,9 @@
       <td data-field="status" data-type="select" data-options="{{ statuses | join(',') }}"
           data-value="{{ row.status }}" tabindex="0">{{ status_badge(row.status) }}</td>
       <td data-field="opened_on" data-type="date" data-value="{{ row.opened_on or '' }}"
-          tabindex="0">{{ row.opened_on or '' }}</td>
+          tabindex="0">{{ row.opened_on | date_long or '' }}</td>
       <td data-field="closed_on" data-type="date" data-value="{{ row.closed_on or '' }}"
-          tabindex="0">{{ row.closed_on or '' }}</td>
+          tabindex="0">{{ row.closed_on | date_long or '' }}</td>
       <td data-field="lead_partner_person_id" data-type="fk-select" data-options-src="#people-options"
           data-value="{{ row.lead_partner_person_id or '' }}" tabindex="0">{{ row.lead_partner_name or '—' }}
           {% if row.partner_inherited and row.lead_partner_name %}
