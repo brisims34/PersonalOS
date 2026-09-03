@@ -255,19 +255,32 @@ RESOURCE_WRITABLE = (
 )
 
 
-def work_resources(project_id=None, workstream_id=None):
-    clauses, params = ["is_active = 1"], []
+def work_resources(project_id=None, workstream_id=None, include_inactive=False):
+    """Active resources only by default (the pickers, the verify action). The
+    project detail page passes include_inactive=True so a deactivated resource
+    stays visible — with a status label — instead of vanishing with no way
+    back to reactivate it."""
+    clauses, params = [], []
+    if not include_inactive:
+        clauses.append("is_active = 1")
     if project_id:
         clauses.append("project_id = ?")
         params.append(project_id)
     if workstream_id:
         clauses.append("workstream_id = ?")
         params.append(workstream_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     return get_db().execute(
-        "SELECT * FROM work_resources WHERE " + " AND ".join(clauses)
-        + " ORDER BY resource_role, sort_order, label",
+        "SELECT * FROM work_resources" + where
+        + " ORDER BY is_active DESC, resource_role, sort_order, label",
         params,
     ).fetchall()
+
+
+def get_work_resource(resource_id):
+    return get_db().execute(
+        "SELECT * FROM work_resources WHERE id = ?", (resource_id,)
+    ).fetchone()
 
 
 def create_work_resource(fields):
@@ -281,6 +294,36 @@ def create_work_resource(fields):
     )
     db.commit()
     return cursor.lastrowid
+
+
+def update_work_resource(resource_id, fields):
+    # Unlike update_project(), None is dropped rather than written through:
+    # resource_kind/resource_role/label/path_or_url are NOT NULL/CHECK columns,
+    # and a stripped-down or forged POST omitting one must leave it as-is
+    # rather than raising sqlite3.IntegrityError.
+    payload = {k: v for k, v in fields.items() if k in RESOURCE_WRITABLE and v is not None}
+    if not payload:
+        return 0
+    assignments = ", ".join(f"{column} = ?" for column in payload)
+    db = get_db()
+    cursor = db.execute(
+        f"UPDATE work_resources SET {assignments}, updated_at = datetime('now') WHERE id = ?",
+        list(payload.values()) + [resource_id],
+    )
+    db.commit()
+    return cursor.rowcount
+
+
+def set_resource_active(resource_id, active):
+    """Deactivate/reactivate — never delete. Verification history and the
+    activity trail both stay intact either way."""
+    db = get_db()
+    cursor = db.execute(
+        "UPDATE work_resources SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
+        (1 if active else 0, resource_id),
+    )
+    db.commit()
+    return cursor.rowcount
 
 
 def verify_work_resources(project_id):

@@ -319,10 +319,11 @@
     {% if resources %}
     <table class="pos-table pos-table-compact">
       <thead><tr><th scope="col">Resource</th><th scope="col">Role</th>
-                 <th scope="col">Path</th><th scope="col">Checked</th></tr></thead>
+                 <th scope="col">Path</th><th scope="col">Checked</th>
+                 <th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
       <tbody>
         {% for row in resources %}
-        <tr>
+        <tr{% if not row.is_active %} class="pos-muted"{% endif %}>
           <td>{{ row.label }}</td>
           <td><span class="pos-badge pos-badge-neutral">{{ row.resource_role }}</span></td>
           <td class="pos-small"><code>{{ row.path_or_url }}</code></td>
@@ -331,6 +332,55 @@
             {% elif row.verify_status == 'missing' %}<span class="pos-badge pos-badge-danger">missing</span>
             {% elif row.verify_status == 'not_verifiable' %}<span class="pos-badge pos-badge-neutral">URL</span>
             {% else %}<span class="pos-muted pos-small">unchecked</span>{% endif %}
+          </td>
+          <td>
+            {% if row.is_active %}<span class="pos-badge pos-badge-ok">active</span>
+            {% else %}<span class="pos-badge pos-badge-neutral">inactive</span>{% endif %}
+          </td>
+          <td class="pos-small">
+            <details>
+              <summary class="pos-btn">Edit</summary>
+              <form method="post"
+                    action="{{ url_for('projects.edit_resource', project_id=project.id, resource_id=row.id) }}"
+                    class="pos-filter-bar pos-mt-3">
+                <div class="pos-field"><label for="rel{{ row.id }}">Label</label>
+                  <input type="text" id="rel{{ row.id }}" name="label" value="{{ row.label }}" required></div>
+                <div class="pos-field"><label for="rek{{ row.id }}">Kind</label>
+                  <select id="rek{{ row.id }}" name="resource_kind">
+                    {% for value in ['folder','file','script','repo','chat_channel','email_thread','url','dashboard','mailbox','other'] %}
+                    <option value="{{ value }}" {% if row.resource_kind == value %}selected{% endif %}>{{ value | replace('_',' ') | title }}</option>{% endfor %}
+                  </select></div>
+                <div class="pos-field"><label for="rer{{ row.id }}">Role</label>
+                  <select id="rer{{ row.id }}" name="resource_role">
+                    {% for value in ['input','working','output','reference','communication'] %}
+                    <option value="{{ value }}" {% if row.resource_role == value %}selected{% endif %}>{{ value | title }}</option>{% endfor %}
+                  </select></div>
+                <div class="pos-field"><label for="rep{{ row.id }}">Path or URL</label>
+                  <input type="text" id="rep{{ row.id }}" name="path_or_url" size="40"
+                         value="{{ row.path_or_url }}" required></div>
+                <div class="pos-field"><label for="ren{{ row.id }}">Description</label>
+                  <input type="text" id="ren{{ row.id }}" name="description" value="{{ row.description or '' }}"></div>
+                <div class="pos-field"><label for="rea{{ row.id }}">Access notes</label>
+                  <input type="text" id="rea{{ row.id }}" name="access_notes" value="{{ row.access_notes or '' }}"></div>
+                <div class="pos-field pos-field-actions">
+                  <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save</button>
+                </div>
+              </form>
+            </details>
+            {% if row.is_active %}
+            <form method="post"
+                  action="{{ url_for('projects.deactivate_resource', project_id=project.id, resource_id=row.id) }}"
+                  class="pos-mt-3"
+                  onsubmit="return confirm('Deactivate “{{ row.label }}”? It drops out of resource pickers and the verify check, but stays recorded and can be reactivated any time.');">
+              <button type="submit" class="pos-btn pos-btn-danger">Deactivate</button>
+            </form>
+            {% else %}
+            <form method="post"
+                  action="{{ url_for('projects.reactivate_resource', project_id=project.id, resource_id=row.id) }}"
+                  class="pos-mt-3">
+              <button type="submit" class="pos-btn">Reactivate</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
