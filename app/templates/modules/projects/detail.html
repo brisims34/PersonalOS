@@ -279,7 +279,14 @@
       <tbody>
         {% for row in locations %}
         <tr data-record-id="{{ row.id }}" data-archived="0">
-          <td><a href="{{ url_for('projects.edit_location', location_id=row.id, project_id=project.id) }}">{{ row.name }}</a></td>
+          <td>
+            <a href="{{ url_for('projects.edit_location', location_id=row.id, project_id=project.id) }}">{{ row.name }}</a>
+            {% if row.building or row.floor or row.room %}
+            <div class="pos-muted pos-small">
+              {{ [row.building and ('Bldg ' ~ row.building), row.floor and ('Floor ' ~ row.floor), row.room and ('Room ' ~ row.room)] | select | join(' · ') }}
+            </div>
+            {% endif %}
+          </td>
           <td data-field="location_kind" data-type="select" data-options="client_site,firm_office,coworking,remote,other" data-value="{{ row.location_kind or '' }}" tabindex="0">{{ row.location_kind | replace('_',' ') | title }}</td>
           <td data-field="site_contact_person_id" data-type="fk-select" data-options-src="#people-options" data-value="{{ row.site_contact_person_id or '' }}" tabindex="0">{{ row.site_contact_name or '' }}</td>
           <td class="pos-small">{{ [row.address_line1, row.city, row.state_province, row.postal_code] | select | join(', ') or '—' }}</td>
