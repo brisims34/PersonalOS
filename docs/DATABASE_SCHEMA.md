@@ -3352,3 +3352,9 @@ CREATE TABLE quick_step_runs (
 ## Forward-Reference Note
 
 `time_entries.import_batch_id` references `import_batches`, and `assignments.requirement_id` / `assignments.scenario_id` reference tables created in later migrations. SQLite does not verify foreign key targets at table-creation time, and these columns are nullable and unused until their target migration runs. `0015` and `0016` are the migrations that make them meaningful; no `ALTER TABLE` is required.
+
+---
+
+# 0026 — Tasks Nav Group
+
+Seed-data fix, not a schema change — no new table, column, or constraint. `tasks` was seeded by `0001_init.sql` into `module_registry.nav_group = 'Command'`, which put it as a sidebar sibling of Command Center. The correct hierarchy is Command Center standalone, then Work containing Portfolios → Projects & Workstreams → Tasks. `0026_tasks_nav_group.sql` moves it: `nav_group = 'Work'`, `sort_order = 125` (after Portfolios at 110 and Projects & Workstreams at 120, before Portfolio Timeline at 130).
