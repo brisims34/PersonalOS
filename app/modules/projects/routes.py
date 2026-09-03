@@ -59,6 +59,7 @@ def detail(project_id):
         workstreams=models.workstreams(project_id),
         codes=code_models.for_project(project_id),
         team=models.project_team(project_id),
+        team_roles=config.options("team_role"),
         locations=models.locations(project_id),
         all_locations=models.locations(),
         resources=models.work_resources(project_id=project_id),
@@ -394,8 +395,34 @@ def add_team_member(project_id):
     if not person_id or models.get_project(project_id) is None:
         abort(400)
     person = people_models.get_person(person_id)
-    links.link("project", project_id, "person", person_id,
-               request.form.get("role") or None)
-    activity.log("project", project_id, "updated", f"Linked {person['full_name']} to the project")
-    flash(f"{person['full_name']} linked to this project.", "success")
+    role = request.form.get("role") or None
+    role_text = f" as {role}" if role else ""
+    added = links.link("project", project_id, "person", person_id, role)
+    if not added:
+        # UNIQUE (source, target, link_label) already holds this exact
+        # (project, person, role) triple — INSERT OR IGNORE was a no-op.
+        flash(f"{person['full_name']} already has that role on this project.", "warning")
+    else:
+        activity.log("project", project_id, "updated",
+                     f"Linked {person['full_name']} to the project{role_text}")
+        flash(f"{person['full_name']} linked to this project{role_text}.", "success")
+    return redirect(url_for("projects.detail", project_id=project_id, tab="team"))
+
+
+@bp.post("/<int:project_id>/team/<int:person_id>/remove")
+def remove_team_member(project_id, person_id):
+    if models.get_project(project_id) is None:
+        abort(400)
+    person = people_models.get_person(person_id)
+    if person is None:
+        abort(400)
+    role = request.form.get("role") or None
+    removed = links.unlink("project", project_id, "person", person_id, role)
+    role_text = f" as {role}" if role else ""
+    if removed:
+        activity.log("project", project_id, "updated",
+                     f"Removed {person['full_name']} from the project{role_text}")
+        flash(f"{person['full_name']} removed from this project{role_text}.", "success")
+    else:
+        flash(f"{person['full_name']} did not have that role on this project.", "warning")
     return redirect(url_for("projects.detail", project_id=project_id, tab="team"))

@@ -10,6 +10,30 @@ to a project stores ('note', n, 'project', p).
 """
 from app.core.database import get_db
 
+# Distinguishes "the caller didn't pass link_label" from "the caller passed
+# link_label=None on purpose" — the two need different SQL (see unlink()).
+_UNSET = object()
+
+
+def exists(source_type, source_id, target_type, target_id, link_label=None):
+    """Whether this exact (source, target, label) link is already present.
+
+    Needed because `entity_links`' UNIQUE constraint includes link_label, and
+    SQL treats every NULL as distinct from every other NULL — so two links
+    with no label never collide there. `link()` calls this to restore the
+    "adding it twice is a no-op" guarantee for the no-label case too.
+    """
+    db = get_db()
+    sql = ("SELECT 1 FROM entity_links WHERE source_type = ? AND source_id = ? "
+           "AND target_type = ? AND target_id = ?")
+    params = [source_type, source_id, target_type, target_id]
+    if link_label is None:
+        sql += " AND link_label IS NULL"
+    else:
+        sql += " AND link_label = ?"
+        params.append(link_label)
+    return db.execute(sql + " LIMIT 1", params).fetchone() is not None
+
 
 def link(source_type, source_id, target_type, target_id, link_label=None):
     """Create the link if it does not exist. Returns True if a row was added."""
@@ -17,6 +41,9 @@ def link(source_type, source_id, target_type, target_id, link_label=None):
         raise ValueError("an entity cannot be linked to itself")
 
     db = get_db()
+    if link_label is None and exists(source_type, source_id, target_type, target_id, None):
+        # UNIQUE can't catch this one (see exists()) — check by hand.
+        return False
     cursor = db.execute(
         "INSERT OR IGNORE INTO entity_links "
         "(source_type, source_id, target_type, target_id, link_label) "
@@ -27,13 +54,32 @@ def link(source_type, source_id, target_type, target_id, link_label=None):
     return cursor.rowcount == 1
 
 
-def unlink(source_type, source_id, target_type, target_id):
+def unlink(source_type, source_id, target_type, target_id, link_label=_UNSET):
+    """Remove the link(s) between a source and target.
+
+    `link_label` is now part of `entity_links`' UNIQUE key (§0008), so one
+    pair of entities can carry several links with different labels — a
+    person holding two roles on the same project, say. Passing `link_label`
+    (including explicitly passing `None`, to mean "the link with no label")
+    removes only that one specific link. Omitting the argument entirely is
+    the historical call shape and removes every link between the pair —
+    keep using that form only when there is deliberately no more than one
+    link per pair to worry about; anything that hands a person a specific
+    row to remove (like the Team tab) must pass that row's actual label,
+    `None` included, or a blank-labelled row's removal will take every
+    other role that person holds on the same project down with it.
+    """
     db = get_db()
-    cursor = db.execute(
-        "DELETE FROM entity_links WHERE source_type = ? AND source_id = ? "
-        "AND target_type = ? AND target_id = ?",
-        (source_type, source_id, target_type, target_id),
-    )
+    sql = ("DELETE FROM entity_links WHERE source_type = ? AND source_id = ? "
+           "AND target_type = ? AND target_id = ?")
+    params = [source_type, source_id, target_type, target_id]
+    if link_label is not _UNSET:
+        if link_label is None:
+            sql += " AND link_label IS NULL"
+        else:
+            sql += " AND link_label = ?"
+            params.append(link_label)
+    cursor = db.execute(sql, params)
     db.commit()
     return cursor.rowcount
 
