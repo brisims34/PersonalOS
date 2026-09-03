@@ -43,17 +43,21 @@
 <div class="pos-grid-2">
   <section class="pos-panel">
     <h2 class="pos-panel-heading">Leadership</h2>
-    <table class="pos-table pos-table-compact">
+    <table class="pos-table pos-table-compact" data-edit-base="/charge-codes/{id}/field">
       <tbody>
-        <tr>
+        <tr data-record-id="{{ code.id }}" data-archived="0">
           <th scope="row">Lead partner</th>
-          <td>{{ code.lead_partner_name or '—' }}
+          <td data-field="lead_partner_person_id" data-type="fk-select" data-options-src="#people-options"
+              data-value="{{ code.lead_partner_person_id or '' }}" tabindex="0">
+            {{ code.lead_partner_name or '—' }}
             {% if code.partner_inherited and code.lead_partner_name %}
             <span class="pos-badge pos-badge-neutral">from the project</span>{% endif %}</td>
         </tr>
-        <tr>
+        <tr data-record-id="{{ code.id }}" data-archived="0">
           <th scope="row">Engagement manager</th>
-          <td>{{ code.engagement_manager_name or '—' }}
+          <td data-field="engagement_manager_person_id" data-type="fk-select" data-options-src="#people-options"
+              data-value="{{ code.engagement_manager_person_id or '' }}" tabindex="0">
+            {{ code.engagement_manager_name or '—' }}
             {% if code.manager_inherited and code.engagement_manager_name %}
             <span class="pos-badge pos-badge-neutral">from the project</span>{% endif %}</td>
         </tr>
@@ -67,15 +71,28 @@
 
   <section class="pos-panel">
     <h2 class="pos-panel-heading">Money and lifecycle</h2>
-    <table class="pos-table pos-table-compact">
+    <table class="pos-table pos-table-compact" data-edit-base="/charge-codes/{id}/field">
       <tbody>
         <tr><th scope="row">Rate card</th><td>{{ code.rate_card_name or "the project's" }}</td></tr>
         <tr><th scope="row">ERP</th>
             <td class="pos-num">{{ code.erp_pct | pct(1) if code.erp_pct is not none else "the project's" }}</td></tr>
         <tr><th scope="row">Budget hours</th><td class="pos-num">{{ code.budget_hours | hours }}</td></tr>
         <tr><th scope="row">Budget fees</th><td class="pos-num">{{ code.budget_fees | money }}</td></tr>
-        <tr><th scope="row">Opened</th><td>{{ code.opened_on | date_long }}</td></tr>
-        <tr><th scope="row">Closed</th><td>{{ code.closed_on | date_long }}</td></tr>
+        <tr data-record-id="{{ code.id }}" data-archived="0">
+          <th scope="row">Status</th>
+          <td data-field="status" data-type="select" data-options="{{ statuses | join(',') }}"
+              data-value="{{ code.status }}" tabindex="0">{{ status_badge(code.status) }}</td>
+        </tr>
+        <tr data-record-id="{{ code.id }}" data-archived="0">
+          <th scope="row">Opened</th>
+          <td data-field="opened_on" data-type="date" data-value="{{ code.opened_on or '' }}"
+              tabindex="0">{{ code.opened_on | date_long }}</td>
+        </tr>
+        <tr data-record-id="{{ code.id }}" data-archived="0">
+          <th scope="row">Closed</th>
+          <td data-field="closed_on" data-type="date" data-value="{{ code.closed_on or '' }}"
+              tabindex="0">{{ code.closed_on | date_long }}</td>
+        </tr>
         <tr><th scope="row">External reference</th><td>{{ code.external_ref or '—' }}</td></tr>
       </tbody>
     </table>
@@ -136,4 +153,8 @@
     </div>
   </form>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="people-options">{{ people_options | tojson }}</script>
 {% endblock %}
