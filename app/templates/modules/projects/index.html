@@ -91,11 +91,11 @@
       <td class="pos-small">{{ row.portfolio_name }}</td>
       <td class="pos-small">{{ row.project_type or '—' }}</td>
       <td data-field="status" data-type="select" data-options="{{ statuses | join(',') }}"
-          tabindex="0">{{ row.status }}</td>
+          data-value="{{ row.status }}" tabindex="0">{{ status_badge(row.status) }}</td>
       <td data-field="rag_status" data-type="select" data-options="{{ rag_statuses | join(',') }}"
-          tabindex="0">{{ row.rag_status or '' }}</td>
+          data-value="{{ row.rag_status or '' }}" tabindex="0">{{ rag_badge(row.rag_status) }}</td>
       <td data-field="priority" data-type="select" data-options="{{ priorities | join(',') }}"
-          tabindex="0">{{ row.priority }}</td>
+          tabindex="0">{{ priority_badge(row.priority) }}</td>
       <td data-field="forecast_end" data-type="date" tabindex="0">{{ row.forecast_end or '' }}</td>
       <td class="pos-num">{{ row.workstream_count | num }}</td>
       <td class="pos-num">
