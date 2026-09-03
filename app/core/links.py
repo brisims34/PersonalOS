@@ -156,14 +156,20 @@ def backlinks_for(entity_type, entity_id):
 
 
 def related(entity_type, entity_id):
-    """Both directions, deduplicated, for the links panel of the object grammar."""
+    """Both directions, deduplicated, for the links panel of the object grammar.
+
+    Dedup key includes link_label, not just the other entity — since §0008
+    widened entity_links to allow more than one link per pair (a person
+    holding two roles on the same project, say), collapsing on identity
+    alone would silently drop every role past the first from the panel.
+    """
     seen, combined = set(), []
     for direction, rows in (
         ("outbound", links_for(entity_type, entity_id)),
         ("inbound", backlinks_for(entity_type, entity_id)),
     ):
         for row in rows:
-            identity = (row["other_type"], row["other_id"])
+            identity = (row["other_type"], row["other_id"], row["link_label"])
             if identity in seen:
                 continue
             seen.add(identity)
