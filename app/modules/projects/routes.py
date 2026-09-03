@@ -316,6 +316,66 @@ def add_location(project_id):
     return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
 
 
+@bp.get("/locations/<int:location_id>/edit")
+def edit_location(location_id):
+    location = models.get_location(location_id)
+    if location is None:
+        abort(404)
+    project_id = request.args.get("project_id", type=int)
+    return render_template(
+        "modules/projects/location_edit.html",
+        location=location,
+        project_id=project_id,
+        people=people_models.list_people(limit=1000),
+        crumbs=[CRUMB, location["name"]],
+    )
+
+
+@bp.post("/locations/<int:location_id>/edit")
+def update_location(location_id):
+    location = models.get_location(location_id)
+    if location is None:
+        abort(404)
+    project_id = request.form.get("project_id", type=int)
+
+    fields = _form_fields(request.form, models.LOCATION_WRITABLE)
+    if not fields.get("name"):
+        flash("A location needs a name.", "error")
+        return redirect(url_for("projects.edit_location", location_id=location_id,
+                                 project_id=project_id))
+
+    models.update_location(location_id, fields)
+    location = models.get_location(location_id)
+    activity.log("location", location_id, "updated", f"Updated location {location['name']}")
+    flash(f"{location['name']}’s details were updated.", "success")
+
+    if project_id and models.location_linked_to_project(project_id, location_id):
+        return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+    return redirect(url_for("projects.index"))
+
+
+@bp.post("/<int:project_id>/locations/<int:location_id>/remove")
+def remove_location(project_id, location_id):
+    project = models.get_project(project_id)
+    if project is None:
+        abort(404)
+    location = models.get_location(location_id)
+    name = location["name"] if location else "This location"
+
+    removed = links.unlink("project", project_id, "location", location_id)
+    if removed:
+        activity.log("project", project_id, "updated",
+                     f"Removed location {name} from {project['name']}")
+        flash(
+            f"{name} removed from this project. The location record itself is kept — "
+            "it can still be linked to other projects.",
+            "success",
+        )
+    else:
+        flash(f"{name} was not linked to this project.", "warning")
+    return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
+
+
 @bp.post("/<int:project_id>/resources")
 def add_resource(project_id):
     if models.get_project(project_id) is None:

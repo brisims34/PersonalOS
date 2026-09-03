@@ -276,6 +276,15 @@
       {% endif %}
       {% if row.access_notes %}<div class="pos-small"><em>Access.</em> {{ row.access_notes }}</div>{% endif %}
       {% if row.logistics_notes %}<div class="pos-small"><em>Logistics.</em> {{ row.logistics_notes }}</div>{% endif %}
+      <div class="pos-page-actions pos-mt-3">
+        <a class="pos-btn"
+           href="{{ url_for('projects.edit_location', location_id=row.id, project_id=project.id) }}">Edit</a>
+        <form method="post"
+              action="{{ url_for('projects.remove_location', project_id=project.id, location_id=row.id) }}"
+              onsubmit="return confirm('Remove {{ row.name }} from {{ project.name }}? The location record itself is kept and can still be linked to other projects.');">
+          <button type="submit" class="pos-btn pos-btn-danger">Remove</button>
+        </form>
+      </div>
     </div>
     {% endfor %}
     {% else %}
