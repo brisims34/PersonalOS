@@ -55,6 +55,7 @@ Migration number tracks build phase. Each table is created by exactly one migrat
 | `0023_innovation.sql` | 19 | Network members, ideas, contributions |
 | `0024_ai.sql` | 20 | Providers, models, policy, jobs, runs, embeddings |
 | `0025_quicksteps.sql` | 23 | Quick steps, quick step runs |
+| `0026_tasks_nav_group.sql` | 4 | Seed-data fix — moves `tasks` from `nav_group='Command'` to `nav_group='Work'` in `module_registry` (no table changes) |
 
 ---
 

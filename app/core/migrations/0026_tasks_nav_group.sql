@@ -1,4 +1,4 @@
--- 0008 — Fix Tasks sidebar grouping
+-- 0026 — Fix Tasks sidebar grouping
 --
 -- Tasks was seeded into the 'Command' nav_group alongside Command Center
 -- (0001_init.sql), so it rendered as a sibling of Command Center in the
