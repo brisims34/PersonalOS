@@ -216,7 +216,7 @@ def workstream_tasks(workstream_id):
     tasks/models.py, the same way app/core/ queries shared tables directly).
     """
     return get_db().execute(
-        "SELECT t.id, t.title, t.status, t.due_date, "
+        "SELECT t.id, t.title, t.status, t.due_date, t.assignee_person_id, "
         "       a.full_name AS assignee_name "
         "FROM tasks t LEFT JOIN people a ON a.id = t.assignee_person_id "
         "WHERE t.workstream_id = ? AND t.archived_at IS NULL "
