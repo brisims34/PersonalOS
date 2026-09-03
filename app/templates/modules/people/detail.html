@@ -50,8 +50,8 @@
 {% endblock %}
 
 {% block tabs %}
-{{ tabs([('overview','Overview'), ('rates','Level & rates'), ('capacity','Capacity & status'),
-         ('org','Reporting'), ('notes','Notes')], tab,
+{{ tabs([('overview','Overview'), ('involvements','Involvements'), ('rates','Level & rates'),
+         ('capacity','Capacity & status'), ('org','Reporting'), ('notes','Notes')], tab,
         url_for('people.detail', person_id=person.id)) }}
 {% endblock %}
 
@@ -91,6 +91,37 @@
     {% endif %}
   </section>
 </div>
+
+{% elif tab == 'involvements' %}
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Involved in ({{ involvements | length }})</h2>
+  {% if involvements %}
+  <table class="pos-table pos-table-compact">
+    <thead><tr><th scope="col">Project</th><th scope="col">Workstream</th>
+               <th scope="col">Role</th></tr></thead>
+    <tbody>
+      {% for row in involvements %}
+      <tr>
+        <td><a href="{{ url_for('projects.detail', project_id=row.project_id) }}">{{ row.project_name }}</a></td>
+        <td>
+          {% if row.workstream_id %}
+          <a href="{{ url_for('projects.workstream', workstream_id=row.workstream_id) }}">{{ row.workstream_name }}</a>
+          {% else %}
+          <span class="pos-muted">whole project</span>
+          {% endif %}
+        </td>
+        <td><span class="pos-badge pos-badge-neutral">{{ row.role }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    {% with title='No involvements yet',
+            body='Nothing links ' ~ person.full_name ~ ' to a project or workstream yet — not as lead partner, engagement manager, project lead, workstream lead, or team member.' %}
+      {% include "partials/_empty_state.html" %}
+    {% endwith %}
+  {% endif %}
+</section>
 
 {% elif tab == 'rates' %}
 <section class="pos-panel">

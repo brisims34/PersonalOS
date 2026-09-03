@@ -77,6 +77,7 @@ def detail(person_id):
         overrides=rates.overrides_for(person_id),
         reports=models.direct_reports(person_id),
         chain=models.chain_up(person_id),
+        involvements=models.involvements_for_person(person_id),
         levels=rates.levels(),
         dispositions=config.options("disposition"),
         related_records=links.related("person", person_id),
