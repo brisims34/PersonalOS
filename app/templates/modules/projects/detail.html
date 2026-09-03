@@ -340,15 +340,18 @@
     <h2 class="pos-panel-heading">Folders, files and channels ({{ resources | length }})</h2>
     <p class="pos-muted pos-small">Paths only — PersonalOS never reads or stores the contents.</p>
     {% if resources %}
-    <table class="pos-table pos-table-compact">
-      <thead><tr><th scope="col">Resource</th><th scope="col">Role</th>
-                 <th scope="col">Path</th><th scope="col">Checked</th>
+    <table class="pos-table pos-table-compact" data-edit-base="/projects/{project_id}/resources/{id}/field" data-project-id="{{ project.id }}">
+      <thead><tr><th scope="col">Resource</th><th scope="col">Kind</th><th scope="col">Role</th>
+                 <th scope="col">Owner</th><th scope="col">Path</th><th scope="col">Checked</th>
                  <th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
       <tbody>
         {% for row in resources %}
-        <tr{% if not row.is_active %} class="pos-muted"{% endif %}>
-          <td>{{ row.label }}</td>
+        {% set owner = (people | selectattr('id', 'equalto', row.owner_person_id) | first) if row.owner_person_id else None %}
+        <tr data-record-id="{{ row.id }}" data-archived="{{ '0' if row.is_active else '1' }}"{% if not row.is_active %} class="pos-muted"{% endif %}>
+          <td data-field="label" data-type="text" data-value="{{ row.label }}" tabindex="0">{{ row.label }}</td>
+          <td data-field="resource_kind" data-type="select" data-options="folder,file,script,repo,chat_channel,email_thread,url,dashboard,mailbox,other" data-value="{{ row.resource_kind or '' }}" tabindex="0">{{ row.resource_kind | replace('_',' ') | title }}</td>
           <td><span class="pos-badge pos-badge-neutral">{{ row.resource_role }}</span></td>
+          <td data-field="owner_person_id" data-type="fk-select" data-options-src="#people-options" data-value="{{ row.owner_person_id or '' }}" tabindex="0">{{ person_link(row.owner_person_id, owner.full_name if owner else None) }}</td>
           <td class="pos-small"><code>{{ row.path_or_url }}</code></td>
           <td>
             {% if row.verify_status == 'ok' %}<span class="pos-badge pos-badge-ok">found</span>

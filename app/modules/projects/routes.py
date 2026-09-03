@@ -689,6 +689,47 @@ def reactivate_resource(project_id, resource_id):
     return redirect(url_for("projects.detail", project_id=project_id, tab="locations"))
 
 
+RESOURCE_INLINE_FIELDS = {"label", "resource_kind", "owner_person_id"}
+
+
+@bp.post("/<int:project_id>/resources/<int:resource_id>/field")
+def update_resource_field(project_id, resource_id):
+    if models.get_project(project_id) is None:
+        abort(404)
+    resource = _get_project_resource(project_id, resource_id)
+    if not resource["is_active"]:
+        return {"ok": False, "error": "This resource is deactivated — reactivate it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in RESOURCE_INLINE_FIELDS:
+        return {"ok": False, "error": f"“{field}” can't be edited inline here."}
+
+    if field == "owner_person_id" and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+    elif field == "label" and not value:
+        return {"ok": False, "error": "A resource needs a label."}
+
+    try:
+        models.update_work_resource(resource_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_work_resource(resource_id)
+    activity.log("work_resource", resource_id, "updated", f"Updated {field} for {updated['label']}")
+    if field == "owner_person_id":
+        owner = people_models.get_person(updated["owner_person_id"]) if updated["owner_person_id"] else None
+        display = owner["full_name"] if owner else ""
+    else:
+        display = updated[field] or ""
+    return {"ok": True, "display": display}
+
+
 @bp.post("/<int:project_id>/dependencies")
 def add_dependency(project_id):
     if models.get_project(project_id) is None:
