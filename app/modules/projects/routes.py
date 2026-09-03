@@ -828,6 +828,44 @@ def archive_dependency(dependency_id):
     )
 
 
+DEPENDENCY_INLINE_FIELDS = {"status", "criticality", "needed_by_date", "owner_person_id"}
+
+
+@bp.post("/dependencies/<int:dependency_id>/field")
+def update_dependency_field(dependency_id):
+    dependency = models.get_dependency(dependency_id)
+    if dependency is None:
+        abort(404)
+    if dependency["archived_at"] is not None:
+        return {"ok": False, "error": "This dependency is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in DEPENDENCY_INLINE_FIELDS:
+        return {"ok": False, "error": f"“{field}” can't be edited inline here."}
+
+    if field == "owner_person_id" and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+
+    try:
+        models.update_dependency(dependency_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_dependency(dependency_id)
+    activity.log("dependency", dependency_id, "updated", f"Updated {field} for {updated['title']}")
+    if field == "owner_person_id":
+        display = updated["owner_name"] or ""
+    else:
+        display = str(updated[field]) if updated[field] is not None else ""
+    return {"ok": True, "display": display}
+
+
 @bp.post("/<int:project_id>/team")
 def add_team_member(project_id):
     person_id = request.form.get("person_id", type=int)

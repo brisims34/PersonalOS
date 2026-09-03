@@ -460,7 +460,7 @@
     </a>
   </p>
   {% if deps %}
-  <table class="pos-table pos-table-compact">
+  <table class="pos-table pos-table-compact" data-edit-base="/projects/dependencies/{id}/field">
     <thead><tr><th scope="col">Needs</th><th scope="col">From</th><th scope="col">Provided by</th>
                <th scope="col">Type</th><th scope="col">Criticality</th>
                <th scope="col">Owner</th>
@@ -468,7 +468,7 @@
                <th scope="col">Actions</th></tr></thead>
     <tbody>
       {% for row in deps %}
-      <tr {% if row.archived_at %}class="pos-row-archived"{% endif %}>
+      <tr data-record-id="{{ row.id }}" data-archived="{{ '1' if row.archived_at else '0' }}"{% if row.archived_at %} class="pos-row-archived"{% endif %}>
         <td>{{ row.title }}
             {% if row.archived_at %}<span class="pos-badge pos-badge-archived">archived</span>{% endif %}</td>
         <td class="pos-small">{{ row.from_name or 'the project' }}</td>
@@ -476,23 +476,13 @@
             {% if not row.to_name and row.external_party %}
             <span class="pos-badge pos-badge-neutral">external</span>{% endif %}</td>
         <td class="pos-small">{{ row.dependency_type | replace('_',' ') }}</td>
-        <td>
+        <td data-field="criticality" data-type="select" data-options="critical,important,minor" data-value="{{ row.criticality }}" tabindex="0">
           <span class="pos-badge pos-badge-{{ 'danger' if row.criticality == 'critical' else 'warn' if row.criticality == 'important' else 'neutral' }}">
             {{ row.criticality }}</span>
         </td>
-        <td class="pos-small">{{ row.owner_name or '—' }}</td>
-        <td>{{ row.needed_by_date | date_long }}</td>
-        <td>
-          <form method="post" action="{{ url_for('projects.dependency_status', dependency_id=row.id) }}">
-            <input type="hidden" name="project_id" value="{{ project.id }}">
-            <label class="pos-visually-hidden" for="ds{{ row.id }}">Status</label>
-            <select id="ds{{ row.id }}" name="status" onchange="this.form.submit()">
-              {% for value in ['identified','confirmed','at_risk','satisfied','broken'] %}
-              <option value="{{ value }}" {% if row.status == value %}selected{% endif %}>{{ value | replace('_',' ') }}</option>
-              {% endfor %}
-            </select>
-          </form>
-        </td>
+        <td data-field="owner_person_id" data-type="fk-select" data-options-src="#people-options" data-value="{{ row.owner_person_id or '' }}" tabindex="0">{{ person_link(row.owner_person_id, row.owner_name) }}</td>
+        <td data-field="needed_by_date" data-type="date" data-value="{{ row.needed_by_date or '' }}" tabindex="0">{{ row.needed_by_date | date_long }}</td>
+        <td data-field="status" data-type="select" data-options="identified,confirmed,at_risk,satisfied,broken" data-value="{{ row.status }}" tabindex="0">{{ row.status | replace('_',' ') }}</td>
         <td class="pos-small">
           <a class="pos-btn"
              href="{{ url_for('projects.edit_dependency', dependency_id=row.id, show_archived=1 if deps_show_archived else None) }}"
