@@ -9,7 +9,7 @@ from datetime import date
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
-from app.core import activity, rates
+from app.core import activity, links, rates
 from app.core.database import get_db
 from app.core.module_registry import guard_blueprint
 
@@ -52,6 +52,7 @@ def card(card_id):
         entries=entries,
         years=sorted(years.items(), reverse=True),
         levels=rates.levels(),
+        related_records=links.related("rate_card", card_id),
         trail=activity.for_entity("rate_card", card_id, limit=15),
         crumbs=[CRUMB, record["name"]],
     )

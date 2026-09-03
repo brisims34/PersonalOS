@@ -116,6 +116,7 @@ def detail(note_id):
         backlinks=notes_index.note_backlinks(note_id),
         outbound=notes_index.outbound_links(note_id),
         blocks=md.find_blocks(text)[0],
+        trail=activity.for_entity("note", note_id, limit=15),
         crumbs=[CRUMB, note["title"]],
     )
 
