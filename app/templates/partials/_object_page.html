@@ -55,7 +55,16 @@
       {% for item in related_records %}
       <li>
         <span class="pos-badge pos-badge-neutral">{{ item.type | replace('_', ' ') | title }}</span>
+        {% if item.url is not none %}
+        <a class="pos-link-label" href="{{ item.url }}">{{ item.display_name }}</a>
+        {% elif item.display_name is not none %}
+        <span class="pos-link-label">{{ item.display_name }}</span>
+        {% else %}
         <span class="pos-link-label">{{ item.label or item.entity_id }}</span>
+        {% endif %}
+        {% if item.display_name is not none and item.label and item.label != item.display_name %}
+        <span class="pos-badge pos-badge-neutral pos-small">{{ item.label }}</span>
+        {% endif %}
         <span class="pos-muted pos-small">{{ item.direction }}</span>
       </li>
       {% endfor %}
