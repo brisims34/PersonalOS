@@ -66,6 +66,7 @@ def detail(project_id):
     show_archived_deps = request.args.get("show_archived") == "1"
     from app.modules.charge_codes import models as code_models
 
+    people = people_models.list_people(limit=1000)
     return render_template(
         "modules/projects/detail.html",
         project=project,
@@ -81,10 +82,9 @@ def detail(project_id):
         deps=models.dependencies(project_id, include_archived=show_archived_deps),
         deps_show_archived=show_archived_deps,
         folder=folders.folder_summary(project["folder_path"]),
-        people=people_models.list_people(limit=1000),
+        people=people,
         workstream_statuses=WORKSTREAM_STATUSES,
-        people_options=[{"id": p["id"], "label": p["full_name"]}
-                         for p in people_models.list_people(limit=1000)],
+        people_options=[{"id": p["id"], "label": p["full_name"]} for p in people],
         related_records=links.related("project", project_id),
         trail=activity.for_entity("project", project_id, limit=15),
         crumbs=[CRUMB, project["name"]],
