@@ -224,6 +224,35 @@ def main():
                 check(f"GET {path} → {expected}", response.status_code == expected,
                       f"got {response.status_code}")
 
+            # The cross-origin guard must refuse a foreign write and pass a
+            # native one. A browser only sends a usable Origin on a form POST
+            # if the app's own Referrer-Policy permits it, so the header is
+            # checked alongside the guard: with `no-referrer` the browser
+            # sends `Origin: null` and every form in the application 403s.
+            from app import SECURITY_HEADERS
+
+            check(
+                "Referrer-Policy leaves the Origin header populated",
+                SECURITY_HEADERS["Referrer-Policy"] != "no-referrer",
+                "`no-referrer` makes browsers serialise the Origin of a form "
+                "POST as null, which the same-origin guard then rejects",
+            )
+            native = client.post(
+                "/people/import/preview", headers={"Origin": "http://localhost"}
+            )
+            check("a same-origin POST is allowed through", native.status_code != 403,
+                  f"got {native.status_code}")
+            foreign = client.post(
+                "/people/import/preview", headers={"Origin": "http://evil.example"}
+            )
+            check("a cross-origin POST is refused", foreign.status_code == 403,
+                  f"got {foreign.status_code}")
+            opaque = client.post(
+                "/people/import/preview", headers={"Origin": "null"}
+            )
+            check("an opaque (null) Origin is refused", opaque.status_code == 403,
+                  f"got {opaque.status_code}")
+
             # A disabled module must 404, not render. This is rule 14 tested
             # rather than asserted.
             with app.app_context():

@@ -37,7 +37,7 @@
     <span class="pos-stat-label">To be added</span>
   </div>
   <div class="pos-stat">
-    <span class="pos-stat-value">{{ plan.counts.update | num }}</span>
+    <span class="pos-stat-value">{{ plan.counts['update'] | num }}</span>
     <span class="pos-stat-label">To be updated</span>
   </div>
   <div class="pos-stat">
@@ -133,9 +133,11 @@
 </section>
 {% endif %}
 
-{% if plan.update %}
+{# `plan['update']` in brackets, never `plan.update`: Jinja resolves a dotted
+   name by attribute first, so the dot form returns dict.update itself. #}
+{% if plan['update'] %}
 <section class="pos-panel">
-  <h2 class="pos-panel-heading">Will be updated ({{ plan.update | length }})</h2>
+  <h2 class="pos-panel-heading">Will be updated ({{ plan['update'] | length }})</h2>
   <p class="pos-muted pos-small">
     Only directory fields change. Notes, strengths, development areas and
     relationship type are never overwritten by an import.
@@ -143,7 +145,7 @@
   <table class="pos-table pos-table-compact">
     <thead><tr><th scope="col">Email</th><th scope="col">Fields changing</th></tr></thead>
     <tbody>
-      {% for row in plan.update[:25] %}
+      {% for row in plan['update'][:25] %}
       <tr>
         <td class="pos-small">{{ row.email }}</td>
         <td class="pos-small">
@@ -155,8 +157,8 @@
       {% endfor %}
     </tbody>
   </table>
-  {% if plan.update | length > 25 %}
-  <p class="pos-muted pos-small">Showing the first 25 of {{ plan.update | length }}.</p>
+  {% if plan['update'] | length > 25 %}
+  <p class="pos-muted pos-small">Showing the first 25 of {{ plan['update'] | length }}.</p>
   {% endif %}
 </section>
 {% endif %}
@@ -169,9 +171,9 @@
       <button type="submit" class="pos-btn" disabled>Cannot commit — a required column is missing</button>
     {% elif plan.already_imported %}
       <button type="submit" class="pos-btn" disabled>Already loaded — nothing to commit</button>
-    {% elif plan.counts.create or plan.counts.update %}
+    {% elif plan.counts.create or plan.counts['update'] %}
       <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>
-        Commit — add {{ plan.counts.create }}, update {{ plan.counts.update }}
+        Commit — add {{ plan.counts.create | num }}, update {{ plan.counts['update'] | num }}
       </button>
     {% else %}
       <button type="submit" class="pos-btn" disabled>Nothing to import — everything already matches</button>

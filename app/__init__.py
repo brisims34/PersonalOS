@@ -53,7 +53,13 @@ SECURITY_HEADERS = {
         "base-uri 'self'"
     ),
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
+    # Deliberately not "no-referrer". Per the Fetch standard, a browser
+    # serialises the Origin of a non-CORS POST — every plain form submission —
+    # as `null` when the referrer policy is "no-referrer", which the
+    # same-origin guard below then rejects: every form in the application 403s.
+    # "same-origin" sends the referrer to this app and to nowhere else, which
+    # is the whole of the privacy intent on a localhost single-user app.
+    "Referrer-Policy": "same-origin",
     "X-Frame-Options": "DENY",
 }
 
