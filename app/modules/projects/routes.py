@@ -287,8 +287,8 @@ def update_project_field(project_id):
 
     try:
         models.update_project(project_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_project(project_id)
     activity.log("project", project_id, "updated", f"Updated {field} for {updated['name']}")
@@ -346,6 +346,7 @@ def workstream(workstream_id):
     if record is None:
         abort(404)
     inbound, outbound = models.workstream_dependencies(workstream_id)
+    people = people_models.list_people(limit=1000)
     return render_template(
         "modules/projects/workstream.html",
         workstream=record,
@@ -354,7 +355,8 @@ def workstream(workstream_id):
         tasks=models.workstream_tasks(workstream_id),
         resources=models.work_resources(workstream_id=workstream_id),
         team=models.workstream_team(workstream_id),
-        people=people_models.list_people(limit=1000),
+        people=people,
+        people_options=[{"id": p["id"], "label": p["full_name"]} for p in people],
         folder=folders.folder_summary(record["folder_path"]),
         related_records=links.related("workstream", workstream_id),
         trail=activity.for_entity("workstream", workstream_id, limit=15),
@@ -459,8 +461,8 @@ def update_workstream_field(workstream_id):
 
     try:
         models.update_workstream(workstream_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_workstream(workstream_id)
     activity.log("workstream", workstream_id, "updated", f"Updated {field} for {updated['name']}")
@@ -581,8 +583,8 @@ def update_location_field(location_id):
 
     try:
         models.update_location(location_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_location(location_id)
     activity.log("location", location_id, "updated", f"Updated {field} for {updated['name']}")
@@ -717,8 +719,8 @@ def update_resource_field(project_id, resource_id):
 
     try:
         models.update_work_resource(resource_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_work_resource(resource_id)
     activity.log("work_resource", resource_id, "updated", f"Updated {field} for {updated['label']}")
@@ -866,8 +868,8 @@ def update_dependency_field(dependency_id):
             models.set_dependency_status(dependency_id, value)
         else:
             models.update_dependency(dependency_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_dependency(dependency_id)
     activity.log("dependency", dependency_id, "updated", f"Updated {field} for {updated['title']}")

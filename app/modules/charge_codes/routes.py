@@ -154,13 +154,13 @@ def update_field(code_id):
             return {"ok": False, "error": f"“{value}” isn't a valid status."}
         try:
             models.set_status(code_id, value)
-        except sqlite3.Error as exc:
-            return {"ok": False, "error": f"Could not save that value: {exc}"}
+        except sqlite3.Error:
+            return {"ok": False, "error": "That value isn't allowed for this field."}
     else:
         try:
             models.update_code(code_id, {field: value})
-        except sqlite3.Error as exc:
-            return {"ok": False, "error": f"Could not save that value: {exc}"}
+        except sqlite3.Error:
+            return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_code(code_id)
     activity.log("charge_code", code_id, "updated", f"Updated {field} for {updated['code']}")

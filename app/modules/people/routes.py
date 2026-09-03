@@ -118,8 +118,8 @@ def update_field(person_id):
 
     try:
         models.update_person(person_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_person(person_id)
     activity.log("person", person_id, "updated", f"Updated {field} for {updated['full_name']}")

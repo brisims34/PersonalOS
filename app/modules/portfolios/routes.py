@@ -122,8 +122,8 @@ def update_field(portfolio_id):
 
     try:
         models.update_portfolio(portfolio_id, {field: value})
-    except sqlite3.Error as exc:
-        return {"ok": False, "error": f"Could not save that value: {exc}"}
+    except sqlite3.Error:
+        return {"ok": False, "error": "That value isn't allowed for this field."}
 
     updated = models.get_portfolio(portfolio_id)
     activity.log("portfolio", portfolio_id, "updated", f"Updated {field} for {updated['name']}")
