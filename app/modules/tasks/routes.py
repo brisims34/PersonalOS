@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date
 
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
@@ -15,6 +16,8 @@ bp = Blueprint("tasks", __name__, url_prefix="/tasks")
 guard_blueprint(bp, "tasks")
 
 CRUMB = ("Tasks", "/tasks")
+
+TASK_INLINE_FIELDS = {"status", "priority", "due_date", "estimate_hours", "assignee_person_id"}
 
 
 @bp.get("/")
@@ -45,6 +48,8 @@ def index():
         workstreams=project_models.all_workstreams(project_id),
         codes=code_models.active_codes(),
         people=people_models.list_people(limit=1000),
+        people_options=[{"id": p["id"], "label": p["full_name"]}
+                        for p in people_models.list_people(limit=1000)],
         task_types=config.options("task_type"),
         crumbs=[CRUMB[0]],
     )
@@ -55,19 +60,62 @@ def detail(task_id):
     task = models.get_task(task_id)
     if task is None:
         abort(404)
+    people = people_models.list_people(limit=1000)
     return render_template(
         "modules/tasks/detail.html",
         task=task,
         projects=project_models.list_projects(limit=500),
         workstreams=project_models.workstreams(task["project_id"]) if task["project_id"] else [],
         codes=code_models.active_codes(),
-        people=people_models.list_people(limit=1000),
+        people=people,
+        people_options=[{"id": p["id"], "label": p["full_name"]} for p in people],
         task_types=config.options("task_type"),
         backlinks=notes_index.backlinks("task", task_id),
         related_records=links.related("task", task_id),
         trail=activity.for_entity("task", task_id, limit=15),
         crumbs=[CRUMB, task["title"]],
     )
+
+
+@bp.post("/<int:task_id>/field")
+def update_field(task_id):
+    task = models.get_task(task_id)
+    if task is None:
+        abort(404)
+    if task["archived_at"] is not None:
+        return {"ok": False, "error": "This task is archived — restore it first to edit."}
+
+    field = request.form.get("field")
+    value = request.form.get("value") or None
+    if field not in TASK_INLINE_FIELDS:
+        return {"ok": False, "error": f"“{field}” can't be edited inline here."}
+
+    if field == "assignee_person_id" and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            return {"ok": False, "error": "That doesn't look like a valid person."}
+        if people_models.get_person(value) is None:
+            return {"ok": False, "error": "That person no longer exists."}
+    elif field == "estimate_hours" and value is not None:
+        try:
+            value = float(value)
+        except ValueError:
+            return {"ok": False, "error": "Estimate hours must be a number."}
+
+    try:
+        models.update_task(task_id, {field: value})
+    except sqlite3.Error as exc:
+        return {"ok": False, "error": f"Could not save that value: {exc}"}
+
+    updated = models.get_task(task_id)
+    activity.log("task", task_id, "updated", f"Updated {field} for “{updated['title']}”")
+    if field == "assignee_person_id":
+        assignee = people_models.get_person(updated["assignee_person_id"]) if updated["assignee_person_id"] else None
+        display = assignee["full_name"] if assignee else ""
+    else:
+        display = str(updated[field]) if updated[field] is not None else ""
+    return {"ok": True, "display": display}
 
 
 def _fields(form):

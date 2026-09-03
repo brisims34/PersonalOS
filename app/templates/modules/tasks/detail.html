@@ -45,13 +45,40 @@
 <div class="pos-grid-2">
   <section class="pos-panel">
     <h2 class="pos-panel-heading">Detail</h2>
-    <table class="pos-table pos-table-compact">
+    <table class="pos-table pos-table-compact" data-edit-base="/tasks/{id}/field">
       <tbody>
-        <tr><th scope="row">Assignee</th>
-            <td>{{ person_link(task.assignee_person_id, task.assignee_name) }}</td></tr>
+        <tr data-record-id="{{ task.id }}" data-archived="{{ '1' if task.archived_at else '0' }}">
+          <th scope="row">Status</th>
+          <td data-field="status" data-type="select"
+              data-options="open,in_progress,blocked,completed,cancelled"
+              data-value="{{ task.status }}" tabindex="0">
+            <span class="pos-badge pos-badge-{{ 'ok' if task.status == 'completed' else 'danger' if task.status == 'blocked' else 'warn' if task.status == 'in_progress' else 'neutral' }}">
+              {{ task.status | replace('_',' ') }}</span>
+          </td>
+        </tr>
+        <tr data-record-id="{{ task.id }}" data-archived="{{ '1' if task.archived_at else '0' }}">
+          <th scope="row">Priority</th>
+          <td data-field="priority" data-type="select" data-options="high,medium,low"
+              data-value="{{ task.priority }}" tabindex="0">{{ priority_badge(task.priority) }}</td>
+        </tr>
+        <tr data-record-id="{{ task.id }}" data-archived="{{ '1' if task.archived_at else '0' }}">
+          <th scope="row">Assignee</th>
+          <td data-field="assignee_person_id" data-type="fk-select" data-options-src="#people-options"
+              data-value="{{ task.assignee_person_id or '' }}" tabindex="0">
+            {{ person_link(task.assignee_person_id, task.assignee_name) }}</td>
+        </tr>
         <tr><th scope="row">Start</th><td>{{ task.start_date | date_long }}</td></tr>
-        <tr><th scope="row">Due</th><td>{{ task.due_date | date_long }}</td></tr>
-        <tr><th scope="row">Estimate</th><td class="pos-num">{{ task.estimate_hours | hours }}</td></tr>
+        <tr data-record-id="{{ task.id }}" data-archived="{{ '1' if task.archived_at else '0' }}">
+          <th scope="row">Due</th>
+          <td data-field="due_date" data-type="date" data-value="{{ task.due_date or '' }}"
+              tabindex="0">{{ task.due_date | date_long }}</td>
+        </tr>
+        <tr data-record-id="{{ task.id }}" data-archived="{{ '1' if task.archived_at else '0' }}">
+          <th scope="row">Estimate</th>
+          <td class="pos-num" data-field="estimate_hours" data-type="number"
+              data-value="{{ task.estimate_hours if task.estimate_hours is not none else '' }}"
+              tabindex="0">{{ task.estimate_hours | hours }}</td>
+        </tr>
         <tr><th scope="row">Source</th><td>{{ task.source | replace('_',' ') }}</td></tr>
         <tr><th scope="row">Completed</th><td>{{ task.completed_at | datetime_long }}</td></tr>
         {% if task.recurrence_id %}
@@ -78,4 +105,8 @@
     {% endif %}
   </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="people-options">{{ people_options | tojson }}</script>
 {% endblock %}

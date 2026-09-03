@@ -114,7 +114,8 @@
     <button type="submit" class="pos-btn">Apply to selected</button>
   </div>
 
-  <table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-tasks">
+  <table class="pos-table pos-table-sortable" data-pos-table data-pos-export-name="personalos-tasks"
+         data-edit-base="/tasks/{id}/field">
     <caption class="pos-visually-hidden">Tasks</caption>
     <thead>
       <tr>
@@ -126,21 +127,25 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr {% if row.status in ('open','in_progress','blocked') and row.due_date and row.due_date < as_of %}class="pos-row-overdue"{% endif %}>
+      <tr data-record-id="{{ row.id }}" data-archived="{{ '1' if row.archived_at else '0' }}"
+          {% if row.status in ('open','in_progress','blocked') and row.due_date and row.due_date < as_of %}class="pos-row-overdue"{% endif %}>
         <td><input type="checkbox" name="task_ids" value="{{ row.id }}"
                    aria-label="Select {{ row.title }}"></td>
         <td><a href="{{ url_for('tasks.detail', task_id=row.id) }}">{{ row.title }}</a></td>
         <td class="pos-small">{{ row.project_name or '—' }}</td>
         <td class="pos-small">{{ row.charge_code or '—' }}</td>
-        <td class="pos-small">{{ row.assignee_name or '—' }}</td>
-        <td>{{ priority_badge(row.priority) }}</td>
-        <td>
+        <td data-field="assignee_person_id" data-type="fk-select" data-options-src="#people-options"
+            data-value="{{ row.assignee_person_id or '' }}" tabindex="0">{{ row.assignee_name or '—' }}</td>
+        <td data-field="priority" data-type="select" data-options="high,medium,low"
+            data-value="{{ row.priority }}" tabindex="0">{{ priority_badge(row.priority) }}</td>
+        <td data-field="due_date" data-type="date" data-value="{{ row.due_date or '' }}" tabindex="0">
           {{ row.due_date | date_long }}
           {% if row.status in ('open','in_progress','blocked') and row.due_date and row.due_date < as_of %}
           <span class="pos-badge pos-badge-danger">overdue</span>
           {% endif %}
         </td>
-        <td>{{ task_status_badge(row.status) }}</td>
+        <td data-field="status" data-type="select" data-options="open,in_progress,blocked,completed,cancelled"
+            data-value="{{ row.status }}" tabindex="0">{{ task_status_badge(row.status) }}</td>
         <td>
           {% if row.status not in ('completed','cancelled') %}
           <button type="submit" class="pos-btn"
@@ -166,4 +171,8 @@
     {% endwith %}
   {% endif %}
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="people-options">{{ people_options | tojson }}</script>
 {% endblock %}
