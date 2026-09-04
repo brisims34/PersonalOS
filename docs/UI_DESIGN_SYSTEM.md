@@ -181,6 +181,30 @@ All of it is links and form controls: the table works with JavaScript off, needs
 no inline script (the CSP forbids them), and every control is keyboard-reachable
 (P10).
 
+**Editing a row in place.** Where a row is a record rather than a link to one —
+the rates on a card, the level ladder — the row carries both its values and its
+inputs, and a button swaps which is shown:
+
+- Each cell holds a `[data-pos-view]` span and a hidden `[data-pos-edit]`
+  control; the row is marked `data-pos-row`.
+- The actions cell carries **Edit**, then **Save** and **Cancel** once open,
+  alongside whatever destructive action the row already had.
+- A `<form>` is not valid between table rows, so the row's form element sits
+  above the table and its inputs reach it by `form="<id>"`. The same trick puts
+  a control in a different cell from the form it posts to.
+- Cancel restores each input to what it held on opening, so an abandoned edit
+  leaves nothing behind. **Escape does what Cancel does** — without it the
+  keyboard path dead-ends in a row you can only leave by saving (P10).
+- The toggle is delegated from the document in `app.js`. Never an inline `on*`
+  handler: `script-src 'self'` refuses to compile one and it fails silently.
+- Because `.pos-btn` sets `display`, which outranks the browser's own `[hidden]`
+  rule, the stylesheet needs `[hidden] { display: none !important; }` or hidden
+  buttons still show.
+
+Saving posts and re-renders the page, so derived cells — a margin, a total —
+are recomputed by the server rather than patched in the DOM, and the
+confirmation names what changed.
+
 - Numerics right-aligned, tabular figures (`font-variant-numeric: tabular-nums`)
 - Negatives in parentheses, not with a minus sign — accounting convention (P9)
 - Thousands separators always; consistent decimal places within a column

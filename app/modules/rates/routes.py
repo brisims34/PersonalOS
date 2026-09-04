@@ -10,6 +10,7 @@ from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
 from app.core import activity, links, rates
+from app.core.formatting import date_long, money
 from app.core.database import get_db
 from app.core.module_registry import guard_blueprint
 
@@ -138,39 +139,13 @@ def save_entries(card_id):
         abort(404)
 
     effective_from = request.form.get("effective_from")
-    if not effective_from:
-        flash("Rates need an effective date — that is what makes them year-aware.", "error")
-        return redirect(url_for("rates.card", card_id=card_id))
-
     # Optional. Left blank the rate stays open, which is right for the current
     # year's rates; setting it is how a superseded rate stops pricing.
     effective_to = request.form.get("effective_to") or None
-    if effective_to and effective_to < effective_from:
-        flash(
-            f"Not saved — a rate running from {effective_from} to "
-            f"{effective_to} ends before it starts.",
-            "error",
-        )
-        return redirect(url_for("rates.card", card_id=card_id))
 
-    # Rates live inside their card's year. The card's range decides what
-    # prices, so a rate outside it could never price anything, and accepting
-    # one silently is how you get a card that looks complete and prices
-    # nothing.
-    outside = (
-        (record["effective_from"] and effective_from < record["effective_from"])
-        or (record["effective_to"] and effective_from > record["effective_to"])
-        or (record["effective_to"] and effective_to
-            and effective_to > record["effective_to"])
-    )
-    if outside:
-        flash(
-            f"Not saved — “{record['name']}” is in force "
-            f"{record['effective_from'] or 'from any date'} to "
-            f"{record['effective_to'] or 'any date'}, so rates running "
-            f"{effective_from} to {effective_to or 'open'} would fall outside it.",
-            "error",
-        )
+    bad_window = _rate_window(record, effective_from, effective_to)
+    if bad_window:
+        flash(f"Not saved — {bad_window}.", "error")
         return redirect(url_for("rates.card", card_id=card_id))
 
     db = get_db()
@@ -212,8 +187,8 @@ def save_entries(card_id):
                  f"{effective_from} to {effective_to or 'open'}")
     flash(
         f"{written} rate{'s' if written != 1 else ''} saved on “{record['name']}” "
-        f"effective {effective_from}"
-        + (f" to {effective_to}" if effective_to else " and open-ended")
+        f"effective {date_long(effective_from)}"
+        + (f" to {date_long(effective_to)}" if effective_to else " and open-ended")
         + ". Existing budgets and time entries keep the rate "
         "they were priced at.",
         "success",
@@ -278,6 +253,106 @@ def update_card(card_id):
     return redirect(url_for("rates.card", card_id=card_id))
 
 
+def _rate_window(record, effective_from, effective_to):
+    """The reason these dates are not a usable rate window, or None.
+
+    Shared by the whole-year form and the single-row edit so a rate cannot be
+    saved through one path that the other would have refused.
+    """
+    if not effective_from:
+        return "rates need an effective date — that is what makes them year-aware"
+    if effective_to and effective_to < effective_from:
+        return (f"a rate running from {effective_from} to {effective_to} "
+                "ends before it starts")
+
+    # A rate outside its card's range could never price anything, and taking
+    # one silently is how you get a card that looks complete and prices nothing.
+    outside = (
+        (record["effective_from"] and effective_from < record["effective_from"])
+        or (record["effective_to"] and effective_from > record["effective_to"])
+        or (record["effective_to"] and effective_to
+            and effective_to > record["effective_to"])
+    )
+    if outside:
+        return (f"“{record['name']}” is in force "
+                f"{record['effective_from'] or 'from any date'} to "
+                f"{record['effective_to'] or 'any date'}, so rates running "
+                f"{effective_from} to {effective_to or 'open'} would fall "
+                "outside it")
+    return None
+
+
+@bp.post("/cards/<int:card_id>/entries/<int:entry_id>")
+def update_entry(card_id, entry_id):
+    """Correct one rate in place.
+
+    The whole-year form upserts by (card, level, effective_from), so before
+    this the only way to change a single rate — or to put an end date on
+    one — was to re-enter the entire year.
+    """
+    record = rates.card(card_id)
+    if record is None:
+        abort(404)
+
+    db = get_db()
+    entry = db.execute(
+        "SELECT e.*, l.label AS level_label FROM rate_card_entries e "
+        "JOIN person_levels l ON l.id = e.level_id "
+        "WHERE e.id = ? AND e.rate_card_id = ?",
+        (entry_id, card_id),
+    ).fetchone()
+    if entry is None:
+        abort(404)
+
+    bill = request.form.get("bill_rate", type=float)
+    cost = request.form.get("cost_rate", type=float)
+    effective_from = request.form.get("effective_from")
+    effective_to = request.form.get("effective_to") or None
+
+    if bill is None and cost is None:
+        flash(f"Not saved — the {entry['level_label']} rate needs a bill rate "
+              "or a cost rate. Remove the row instead to drop it entirely.",
+              "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    bad_window = _rate_window(record, effective_from, effective_to)
+    if bad_window:
+        flash(f"Not saved — {bad_window}.", "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    # effective_from is the key the whole-year form upserts on, so moving a
+    # rate onto a date its level already occupies would leave two rates
+    # competing for the same day with nothing to choose between them.
+    clash = db.execute(
+        "SELECT id FROM rate_card_entries WHERE rate_card_id = ? "
+        "AND level_id = ? AND effective_from = ? AND id != ?",
+        (card_id, entry["level_id"], effective_from, entry_id),
+    ).fetchone()
+    if clash:
+        flash(f"Not saved — {entry['level_label']} already has a rate "
+              f"effective {effective_from} on this card.", "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    db.execute(
+        "UPDATE rate_card_entries SET bill_rate = ?, cost_rate = ?, "
+        "effective_from = ?, effective_to = ? WHERE id = ?",
+        (bill, cost, effective_from, effective_to, entry_id),
+    )
+    db.commit()
+    activity.log("rate_card", card_id, "updated",
+                 f"Corrected the {entry['level_label']} rate effective "
+                 f"{effective_from} on {record['name']}")
+    flash(
+        f"{entry['level_label']} now bills at {money(bill)} and costs "
+        f"{money(cost)}, effective {date_long(effective_from)}"
+        + (f" to {date_long(effective_to)}" if effective_to else " and open-ended")
+        + ". Budgets and time entries already priced keep the rate they were "
+        "written with.",
+        "success",
+    )
+    return redirect(url_for("rates.card", card_id=card_id))
+
+
 @bp.post("/cards/<int:card_id>/entries/<int:entry_id>/delete")
 def delete_entry(card_id, entry_id):
     """Remove one wrong rate without rebuilding the card.
@@ -305,7 +380,8 @@ def delete_entry(card_id, entry_id):
                  f"Removed the {entry['level_label']} rate effective "
                  f"{entry['effective_from']} from {record['name']}")
     flash(
-        f"{entry['level_label']} effective {entry['effective_from']} removed. "
+        f"{entry['level_label']} effective {date_long(entry['effective_from'])} "
+        "removed. "
         "Anything already priced from it keeps the rate it was written with.",
         "success",
     )

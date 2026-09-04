@@ -816,6 +816,74 @@ def main():
                 check("a year contradicting its dates is refused",
                       "falls in FY2027" in contradiction.get_data(as_text=True))
 
+                # A wrong rate has to be correctable in place. Until now the
+                # only way to change one was to re-enter the whole year in
+                # "Add or amend a year", which is also why an end date could
+                # not be put on a single rate.
+                # Dated from the card as it stands now, not hard-coded: the
+                # checks above moved this card to FY2027, and a rate outside
+                # its card is refused — correctly, but it would look like the
+                # edit route failing.
+                with scratch.app_context():
+                    card_now = core_rates.card(bounded)
+                    starts = card_now["effective_from"]
+                    ends = card_now["effective_to"]
+                    editable = get_db().execute(
+                        "INSERT INTO rate_card_entries (rate_card_id, level_id, "
+                        "bill_rate, cost_rate, effective_from) "
+                        "VALUES (?, ?, 400, 200, ?)",
+                        (bounded, core_rates.levels()[1]["id"], starts),
+                    ).lastrowid
+                    get_db().commit()
+
+                page = cards.get(f"/rates/cards/{bounded}").get_data(as_text=True)
+                check("each rate row offers an edit control",
+                      "data-pos-row-edit" in page)
+
+                def edit(**over):
+                    payload = {"bill_rate": 450, "cost_rate": 210,
+                               "effective_from": starts, "effective_to": ""}
+                    payload.update(over)
+                    return cards.post(
+                        f"/rates/cards/{bounded}/entries/{editable}",
+                        data=payload, headers=origin, follow_redirects=True)
+
+                def entry_now():
+                    with scratch.app_context():
+                        return get_db().execute(
+                            "SELECT bill_rate, cost_rate, effective_from, "
+                            "effective_to FROM rate_card_entries WHERE id = ?",
+                            (editable,)).fetchone()
+
+                edit()
+                check("a rate can be corrected in place",
+                      entry_now()["bill_rate"] == 450
+                      and entry_now()["cost_rate"] == 210,
+                      f"{entry_now()['bill_rate']}/{entry_now()['cost_rate']}")
+
+                edit(effective_to=ends)
+                check("editing a rate can close it with an end date",
+                      entry_now()["effective_to"] == ends,
+                      str(entry_now()["effective_to"]))
+
+                backwards = edit(effective_from=ends, effective_to=starts)
+                check("a rate that would end before it starts is refused",
+                      entry_now()["effective_from"] == starts
+                      and "ends before it starts" in backwards.get_data(as_text=True))
+
+                # A rate outside its card could never price, so accepting one
+                # would leave a card that looks complete and prices nothing.
+                outside = edit(effective_from="2000-01-01")
+                check("a rate edited outside its card's range is refused",
+                      entry_now()["effective_from"] == starts
+                      and "outside it" in outside.get_data(as_text=True))
+
+                blank = edit(bill_rate="", cost_rate="")
+                check("a rate with neither a bill nor a cost is refused",
+                      entry_now()["bill_rate"] == 450
+                      and "needs a bill rate or a cost rate"
+                          in blank.get_data(as_text=True))
+
                 # One wrong rate must be removable without rebuilding the card.
                 with scratch.app_context():
                     before_count = len(core_rates.card_entries(bounded))

@@ -42,29 +42,71 @@
 {% block body %}
 {% if years %}
   {% for effective_from, rows in years %}
+  {# One end date for the whole block reads as a period; a mix of them does
+     not, so the heading only claims one when every rate agrees. #}
+  {% set ends = rows | map(attribute='effective_to') | unique | list %}
   <section class="pos-panel">
-    <h2 class="pos-panel-heading">Effective from {{ effective_from | date_long }}</h2>
+    <h2 class="pos-panel-heading">
+      Effective from {{ effective_from | date_long }}
+      {%- if ends | length == 1 %}
+        {%- if ends[0] %} to {{ ends[0] | date_long }}
+        {%- else %}, open-ended{% endif %}
+      {%- endif %}
+    </h2>
+    {# Each row's editor lives here rather than inside a cell: a <form> is not
+       valid between table rows, so the inputs reach it by form="re…". #}
+    {% for row in rows %}
+    <form id="re{{ row.id }}" method="post"
+          action="{{ url_for('rates.update_entry', card_id=card.id, entry_id=row.id) }}"></form>
+    {% endfor %}
     <table class="pos-table pos-table-compact">
       <thead>
         <tr><th scope="col">Level</th><th scope="col" class="pos-num">Bill rate</th>
             <th scope="col" class="pos-num">Cost rate</th>
             <th scope="col" class="pos-num">Margin at 100% ERP</th>
-            <th scope="col">Until</th>
+            <th scope="col">Effective to</th>
             <th scope="col"><span class="pos-visually-hidden">Actions</span></th></tr>
       </thead>
       <tbody>
         {% for row in rows | sort(attribute='sort_order', reverse=true) %}
-        <tr>
-          <td>{{ row.level_label }}</td>
-          <td class="pos-num">{{ row.bill_rate | money }}</td>
-          <td class="pos-num">{{ row.cost_rate | money }}</td>
+        <tr data-pos-row>
+          <td>{{ row.level_label }}
+            <input type="hidden" name="effective_from" form="re{{ row.id }}"
+                   value="{{ row.effective_from }}">
+          </td>
+          <td class="pos-num">
+            <span data-pos-view>{{ row.bill_rate | money }}</span>
+            <label class="pos-visually-hidden" for="eb{{ row.id }}">Bill rate for {{ row.level_label }}</label>
+            <input type="number" step="0.01" min="0" id="eb{{ row.id }}" hidden
+                   name="bill_rate" form="re{{ row.id }}" data-pos-edit
+                   value="{{ row.bill_rate if row.bill_rate is not none }}">
+          </td>
+          <td class="pos-num">
+            <span data-pos-view>{{ row.cost_rate | money }}</span>
+            <label class="pos-visually-hidden" for="ec{{ row.id }}">Cost rate for {{ row.level_label }}</label>
+            <input type="number" step="0.01" min="0" id="ec{{ row.id }}" hidden
+                   name="cost_rate" form="re{{ row.id }}" data-pos-edit
+                   value="{{ row.cost_rate if row.cost_rate is not none }}">
+          </td>
           <td class="pos-num">
             {% if row.bill_rate and row.cost_rate %}
               {{ ((row.bill_rate - row.cost_rate) / row.bill_rate * 100) | pct(1) }}
             {% else %}—{% endif %}
           </td>
-          <td>{{ row.effective_to | date_long if row.effective_to else 'open' }}</td>
           <td>
+            <span data-pos-view>{{ row.effective_to | date_long if row.effective_to else 'open' }}</span>
+            <label class="pos-visually-hidden" for="et{{ row.id }}">Effective to for {{ row.level_label }}</label>
+            <input type="date" id="et{{ row.id }}" hidden
+                   name="effective_to" form="re{{ row.id }}" data-pos-edit
+                   value="{{ row.effective_to or '' }}"
+                   {% if card.effective_to %}max="{{ card.effective_to }}"{% endif %}
+                   min="{{ row.effective_from }}">
+          </td>
+          <td class="pos-row-actions">
+            <button type="button" class="pos-btn pos-btn-small" data-pos-row-edit>Edit</button>
+            <button type="submit" form="re{{ row.id }}" hidden data-pos-row-save
+                    class="pos-btn pos-btn-small pos-btn-primary">Save</button>
+            <button type="button" class="pos-btn pos-btn-small" hidden data-pos-row-cancel>Cancel</button>
             <form method="post"
                   action="{{ url_for('rates.delete_entry', card_id=card.id, entry_id=row.id) }}"
                   data-pos-confirm="Remove the {{ row.level_label }} rate effective {{ effective_from }}? Anything already priced from it keeps the rate it was written with.">

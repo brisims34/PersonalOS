@@ -977,3 +977,28 @@ details.pos-panel > summary { cursor: pointer; list-style: revert; }
    together so "after" is never orphaned at the end of the line above. */
 .pos-promote-rule select { display: block; width: 100%; margin-bottom: .25rem; }
 .pos-promote-rule .pos-promote-term { white-space: nowrap; }
+
+/* .pos-btn sets display, which outranks the browser's own [hidden] rule, so a
+   hidden button would still show. Row editing toggles this attribute. */
+[hidden] { display: none !important; }
+
+.pos-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  align-items: center;
+}
+.pos-row-actions form { display: inline; }
+
+/* An in-page jump lands the panel flush with the viewport top, which puts its
+   heading under the sticky header — so the eye lands on whatever panel comes
+   next and the jump reads as having gone somewhere else entirely. */
+.pos-panel { scroll-margin-top: 5rem; }
+
+/* "Edit card" is an anchor to this panel. Without a visible response the jump
+   reads as nothing having happened, because the panel it lands on looks the
+   same as the one below it. */
+.pos-panel:target {
+  outline: 2px solid var(--pos-accent);
+  outline-offset: 2px;
+}

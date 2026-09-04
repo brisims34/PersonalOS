@@ -299,9 +299,68 @@
     });
   }
 
+  /* Per-row editing for tables that render a value and its input side by side.
+   *
+   * The row carries both: a [data-pos-view] span and a hidden [data-pos-edit]
+   * control. Edit swaps which is shown; Cancel swaps back and restores what
+   * the input started with, so an abandoned edit leaves nothing behind.
+   *
+   * Delegated, and no inline handler anywhere: script-src 'self' refuses to
+   * compile an on* attribute and fails silently when it does. */
+  function setRowEditing(row, editing) {
+    row.querySelectorAll("[data-pos-view]").forEach(function (view) {
+      view.hidden = editing;
+    });
+    row.querySelectorAll("[data-pos-edit]").forEach(function (field) {
+      if (editing && field.dataset.posWas === undefined) {
+        field.dataset.posWas = field.value;
+      }
+      field.hidden = !editing;
+    });
+    ["[data-pos-row-edit]"].forEach(function (selector) {
+      var button = row.querySelector(selector);
+      if (button) button.hidden = editing;
+    });
+    ["[data-pos-row-save]", "[data-pos-row-cancel]"].forEach(function (selector) {
+      var button = row.querySelector(selector);
+      if (button) button.hidden = !editing;
+    });
+    if (editing) {
+      var first = row.querySelector("[data-pos-edit]");
+      if (first) first.focus();
+    }
+  }
+
+  function bindRowEditors() {
+    document.addEventListener("click", function (event) {
+      var start = event.target.closest("[data-pos-row-edit]");
+      if (start) {
+        setRowEditing(start.closest("[data-pos-row]"), true);
+        return;
+      }
+      var cancel = event.target.closest("[data-pos-row-cancel]");
+      if (!cancel) return;
+      var row = cancel.closest("[data-pos-row]");
+      row.querySelectorAll("[data-pos-edit]").forEach(function (field) {
+        if (field.dataset.posWas !== undefined) field.value = field.dataset.posWas;
+      });
+      setRowEditing(row, false);
+    });
+
+    /* Escape leaves an edit the way Cancel does, so the keyboard path does not
+     * dead-end in a row you can only get out of by saving. */
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      var row = event.target.closest("[data-pos-row]");
+      if (!row || !row.querySelector("[data-pos-row-cancel]:not([hidden])")) return;
+      row.querySelector("[data-pos-row-cancel]").click();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     renderHotkeyTable();
     bindChrome();
     bindConfirmations();
+    bindRowEditors();
   });
 })();
