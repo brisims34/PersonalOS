@@ -139,10 +139,32 @@
 <section class="pos-panel" id="add-rates">
   <h2 class="pos-panel-heading">Add or amend a year</h2>
   <form method="post" action="{{ url_for('rates.save_entries', card_id=card.id) }}">
-    <div class="pos-field pos-mb-3">
-      <label for="ef">Effective from</label>
-      <input type="date" id="ef" name="effective_from" required>
+    <div class="pos-filter-bar pos-mb-3">
+      <div class="pos-field">
+        <label for="ef">Effective from</label>
+        <input type="date" id="ef" name="effective_from" required
+               value="{{ card.effective_from or '' }}"
+               {% if card.effective_from %}min="{{ card.effective_from }}"{% endif %}
+               {% if card.effective_to %}max="{{ card.effective_to }}"{% endif %}>
+      </div>
+      <div class="pos-field">
+        <label for="et">Effective to</label>
+        <input type="date" id="et" name="effective_to"
+               {% if card.effective_from %}min="{{ card.effective_from }}"{% endif %}
+               {% if card.effective_to %}max="{{ card.effective_to }}"{% endif %}>
+      </div>
     </div>
+    <p class="pos-muted pos-small">
+      Leave <strong>Effective to</strong> blank and the rate stays open, which is
+      what the current year's rates want. Setting it is how a superseded rate
+      stops pricing on a date.
+      {% if card.effective_from or card.effective_to %}
+      This card is in force
+      {{ card.effective_from | date_long if card.effective_from else 'from any date' }}
+      to {{ card.effective_to | date_long if card.effective_to else 'any date' }},
+      and its rates have to sit inside that.
+      {% endif %}
+    </p>
     <table class="pos-table pos-table-compact">
       <thead><tr><th scope="col">Level</th><th scope="col" class="pos-num">Bill rate</th>
                  <th scope="col" class="pos-num">Cost rate</th></tr></thead>

@@ -678,6 +678,58 @@ def main():
             check("and shows nothing outside the card's fiscal year",
                   out_of_year is None)
 
+            # A rate can be closed with an end date, not only opened. Without
+            # one every rate reads "open" for ever and a superseded rate goes
+            # on pricing.
+            with scratch.test_client() as entries_client:
+                with scratch.app_context():
+                    a_level = core_rates.levels()[0]["id"]
+                saved = entries_client.post(
+                    f"/rates/cards/{bounded}/entries",
+                    data={"effective_from": "2025-10-01",
+                          "effective_to": "2026-03-31",
+                          f"bill_{a_level}": 400, f"cost_{a_level}": 200},
+                    headers=origin, follow_redirects=True)
+                with scratch.app_context():
+                    closed = [e for e in core_rates.card_entries(bounded)
+                              if e["level_id"] == a_level
+                              and e["effective_from"] == "2025-10-01"]
+                check("a rate can be given an end date",
+                      closed and closed[0]["effective_to"] == "2026-03-31",
+                      f"{closed[0]['effective_to'] if closed else 'no row'}, "
+                      f"status {saved.status_code}")
+
+                with scratch.app_context():
+                    inside = core_rates.entry_for(bounded, a_level, "2026-01-15")
+                    after_end = core_rates.entry_for(bounded, a_level, "2026-06-15")
+                # The level also carries an older open-ended rate, so what is
+                # being asserted is that the closed one wins inside its window
+                # and stops applying after it — not that nothing prices at all.
+                check("a closed rate wins inside its own window",
+                      inside is not None and inside["bill_rate"] == 400,
+                      str(dict(inside)) if inside else "none")
+                check("and stops applying after its end date",
+                      after_end is None or after_end["bill_rate"] != 400,
+                      str(dict(after_end)) if after_end else "none")
+
+                backwards = entries_client.post(
+                    f"/rates/cards/{bounded}/entries",
+                    data={"effective_from": "2026-05-01",
+                          "effective_to": "2026-01-01",
+                          f"bill_{a_level}": 100},
+                    headers=origin, follow_redirects=True)
+                check("an end date before the start is refused",
+                      "ends before it starts" in backwards.get_data(as_text=True))
+
+                past_card = entries_client.post(
+                    f"/rates/cards/{bounded}/entries",
+                    data={"effective_from": "2026-05-01",
+                          "effective_to": "2030-01-01",
+                          f"bill_{a_level}": 100},
+                    headers=origin, follow_redirects=True)
+                check("an end date beyond the card's own end is refused",
+                      "is in force" in past_card.get_data(as_text=True))
+
             # A rate card has to be correctable. Without an edit route a typo
             # in the fiscal year could only be fixed by archiving the card and
             # starting again.

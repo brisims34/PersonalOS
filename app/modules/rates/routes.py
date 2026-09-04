@@ -142,19 +142,33 @@ def save_entries(card_id):
         flash("Rates need an effective date — that is what makes them year-aware.", "error")
         return redirect(url_for("rates.card", card_id=card_id))
 
-    # The card's range decides, so an entry outside it could never price
-    # anything. Accepting one silently is how you get a rate card that looks
-    # complete and prices nothing.
+    # Optional. Left blank the rate stays open, which is right for the current
+    # year's rates; setting it is how a superseded rate stops pricing.
+    effective_to = request.form.get("effective_to") or None
+    if effective_to and effective_to < effective_from:
+        flash(
+            f"Not saved — a rate running from {effective_from} to "
+            f"{effective_to} ends before it starts.",
+            "error",
+        )
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    # Rates live inside their card's year. The card's range decides what
+    # prices, so a rate outside it could never price anything, and accepting
+    # one silently is how you get a card that looks complete and prices
+    # nothing.
     outside = (
         (record["effective_from"] and effective_from < record["effective_from"])
         or (record["effective_to"] and effective_from > record["effective_to"])
+        or (record["effective_to"] and effective_to
+            and effective_to > record["effective_to"])
     )
     if outside:
         flash(
             f"Not saved — “{record['name']}” is in force "
             f"{record['effective_from'] or 'from any date'} to "
-            f"{record['effective_to'] or 'any date'}, so rates effective "
-            f"{effective_from} would never price anything.",
+            f"{record['effective_to'] or 'any date'}, so rates running "
+            f"{effective_from} to {effective_to or 'open'} would fall outside it.",
             "error",
         )
         return redirect(url_for("rates.card", card_id=card_id))
@@ -175,15 +189,17 @@ def save_entries(card_id):
             ).fetchone()
             if existing:
                 db.execute(
-                    "UPDATE rate_card_entries SET bill_rate = ?, cost_rate = ? WHERE id = ?",
-                    (bill, cost, existing["id"]),
+                    "UPDATE rate_card_entries SET bill_rate = ?, cost_rate = ?, "
+                    "effective_to = ? WHERE id = ?",
+                    (bill, cost, effective_to, existing["id"]),
                 )
             else:
                 db.execute(
                     "INSERT INTO rate_card_entries "
-                    "(rate_card_id, level_id, bill_rate, cost_rate, effective_from) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (card_id, level["id"], bill, cost, effective_from),
+                    "(rate_card_id, level_id, bill_rate, cost_rate, "
+                    " effective_from, effective_to) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (card_id, level["id"], bill, cost, effective_from, effective_to),
                 )
             written += 1
         db.commit()
@@ -192,10 +208,13 @@ def save_entries(card_id):
         raise
 
     activity.log("rate_card", card_id, "updated",
-                 f"{written} rate(s) set on {record['name']} effective {effective_from}")
+                 f"{written} rate(s) set on {record['name']} effective "
+                 f"{effective_from} to {effective_to or 'open'}")
     flash(
         f"{written} rate{'s' if written != 1 else ''} saved on “{record['name']}” "
-        f"effective {effective_from}. Existing budgets and time entries keep the rate "
+        f"effective {effective_from}"
+        + (f" to {effective_to}" if effective_to else " and open-ended")
+        + ". Existing budgets and time entries keep the rate "
         "they were priced at.",
         "success",
     )
