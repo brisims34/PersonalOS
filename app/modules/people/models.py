@@ -124,6 +124,41 @@ def by_email(email):
     ).fetchone()
 
 
+# Column key -> (value expression, label expression). The key arrives from the
+# request; the SQL never does. A key outside this dict is a programming error,
+# not user input, so a KeyError is the right failure.
+FILTERABLE_COLUMNS = {
+    "company":    ("p.company",    "p.company"),
+    "department": ("p.department", "p.department"),
+    "function":   ("p.function",   "p.function"),
+    "status":     ("p.status",     "p.status"),
+    "level":      ("l.id",         "l.label"),
+}
+
+# Which filter a column's own menu ignores when counting, so that choosing
+# "KPMG" does not reduce the Company menu to only KPMG.
+FILTER_FOR_COLUMN = {
+    "company": "company", "department": "department", "function": "function",
+    "status": "status", "level": "level_id",
+}
+
+
+def column_values(column, **filters):
+    value_expression, label_expression = FILTERABLE_COLUMNS[column]
+    filters.pop(FILTER_FOR_COLUMN[column], None)
+    where, params = _filter_clause(**filters)
+    sql = (
+        f"SELECT {value_expression} AS value, {label_expression} AS label, "
+        "COUNT(*) AS n FROM people p "
+        "LEFT JOIN person_levels l ON l.id = p.level_id "
+        "LEFT JOIN people m ON m.id = p.manager_person_id"
+        + where +
+        f" GROUP BY {value_expression} HAVING value IS NOT NULL"
+        f" ORDER BY {label_expression}"
+    )
+    return get_db().execute(sql, params).fetchall()
+
+
 def filter_values():
     db = get_db()
     return {

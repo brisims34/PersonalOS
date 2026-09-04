@@ -2,6 +2,44 @@
 {% from "partials/_macros.html" import person_link, pager, status_badge %}
 {% block title %}Contacts{% endblock %}
 
+{# Sort and filter handles live in the header cell. Both are plain links, so
+   the whole table is operable without JavaScript and by keyboard, and the
+   ordering is the server's over every row rather than this page's. #}
+{% macro column_head(label, key, filter_key=none, menu=none) %}
+  {% set is_current = sort == key %}
+  {% set next_dir = 'desc' if (is_current and direction == 'asc') else 'asc' %}
+  <th scope="col"
+      aria-sort="{{ 'ascending' if is_current and direction == 'asc'
+                    else 'descending' if is_current else 'none' }}">
+    <a class="pos-th-sort" href="{{ url_for('people.index',
+        **dict(query_args, sort=key, dir=next_dir, page=1)) }}">
+      {{ label }}
+      <span aria-hidden="true">{{ '▲' if is_current and direction == 'asc'
+                                  else '▼' if is_current else '↕' }}</span>
+    </a>
+    {% if menu %}
+    <details class="pos-th-filter">
+      <summary title="Filter by {{ label }}">
+        <span class="pos-visually-hidden">Filter by {{ label }}</span>
+        <span aria-hidden="true">{{ '●' if filters[filter_key] else '▾' }}</span>
+      </summary>
+      <div class="pos-menu-panel" role="menu">
+        <a class="pos-menu-item" role="menuitem"
+           href="{{ url_for('people.index',
+                   **dict(query_args, page=1, **{filter_key: none})) }}">Any {{ label | lower }}</a>
+        {% for row in menu %}
+        <a class="pos-menu-item" role="menuitem"
+           href="{{ url_for('people.index',
+                   **dict(query_args, page=1, **{filter_key: row.value})) }}">
+          {{ row.label }} <span class="pos-muted">({{ row.n | num }})</span>
+        </a>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+  </th>
+{% endmacro %}
+
 {% block content %}
 <header class="pos-page-head">
   <div>
@@ -83,39 +121,42 @@
 {% endif %}
 
 <form class="pos-filter-bar" method="get" action="{{ url_for('people.index') }}" role="search">
+  {# Level, Company, Department, Function and Status now filter from their own
+     column headers. What stays here is what belongs to no single column. #}
   <div class="pos-field">
     <label for="f-q">Name, email, title or city</label>
     <input type="search" id="f-q" name="q" value="{{ filters.search or '' }}" autocomplete="off">
   </div>
   <div class="pos-field">
-    <label for="f-level">Level</label>
-    <select id="f-level" name="level_id">
-      <option value="">All levels</option>
-      {% for level in options.levels %}
-      <option value="{{ level.id }}" {% if filters.level_id == level.id %}selected{% endif %}>{{ level.label }}</option>
-      {% endfor %}
-    </select>
+    <label for="f-unmapped">
+      <input type="checkbox" id="f-unmapped" name="unmapped" value="1"
+             {% if filters.unmapped %}checked{% endif %}> No level
+    </label>
   </div>
   <div class="pos-field">
-    <label for="f-company">Company</label>
-    <select id="f-company" name="company">
-      <option value="">All companies</option>
-      {% for name in options.companies %}
-      <option value="{{ name }}" {% if filters.company == name %}selected{% endif %}>{{ name }}</option>
-      {% endfor %}
-    </select>
+    <label for="f-no-manager">
+      <input type="checkbox" id="f-no-manager" name="no_manager" value="1"
+             {% if filters.no_manager %}checked{% endif %}> No manager
+    </label>
   </div>
   <div class="pos-field">
-    <label for="f-function">Function</label>
-    <select id="f-function" name="function">
-      <option value="">All functions</option>
-      {% for name in options.functions %}
-      <option value="{{ name }}" {% if filters.function == name %}selected{% endif %}>{{ name }}</option>
-      {% endfor %}
-    </select>
+    <label for="f-archived">
+      <input type="checkbox" id="f-archived" name="archived" value="1"
+             {% if filters.include_archived %}checked{% endif %}> Include archived
+    </label>
   </div>
+  {# The column filters live in the URL, so they have to survive a search. #}
+  {% for key in ('level_id', 'company', 'department', 'function', 'status') %}
+    {% if query_args.get(key) %}
+    <input type="hidden" name="{{ key }}" value="{{ query_args.get(key) }}">
+    {% endif %}
+  {% endfor %}
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ direction }}">
+  <input type="hidden" name="per_page" value="{{ page_size }}">
   <div class="pos-field pos-field-actions">
     <button type="submit" class="pos-btn">Filter</button>
+    <a class="pos-btn" href="{{ url_for('people.index') }}">Clear</a>
   </div>
 </form>
 
@@ -125,19 +166,20 @@
   <button type="button" class="pos-btn" data-pos-export="people-table">Export CSV</button>
 </p>
 
-<table class="pos-table pos-table-sortable" id="people-table" data-pos-table
-       data-pos-export-name="personalos-contacts" data-edit-base="/people/{id}/field">
+<table class="pos-table" id="people-table" data-pos-table data-pos-server-sort
+       data-edit-base="/people/{id}/field">
   <caption class="pos-visually-hidden">Contacts</caption>
   <thead>
     <tr>
-      <th scope="col">Name</th>
-      <th scope="col">Job title</th>
-      <th scope="col">Level</th>
-      <th scope="col">Department</th>
-      <th scope="col">Company</th>
-      <th scope="col">Location</th>
-      <th scope="col">Manager</th>
-      <th scope="col">Status</th>
+      {{ column_head('Name', 'name') }}
+      {{ column_head('Job title', 'title') }}
+      {{ column_head('Level', 'level', 'level_id', menus.level) }}
+      {{ column_head('Department', 'department', 'department', menus.department) }}
+      {{ column_head('Company', 'company', 'company', menus.company) }}
+      {{ column_head('City', 'city') }}
+      {{ column_head('State', 'state') }}
+      {{ column_head('Manager', 'manager') }}
+      {{ column_head('Status', 'status', 'status', menus.status) }}
     </tr>
   </thead>
   <tbody>
@@ -157,8 +199,12 @@
       </td>
       <td class="pos-small" data-field="department" data-type="text" data-value="{{ row.department or '' }}"
           tabindex="0">{{ row.department or '—' }}</td>
-      <td class="pos-small">{{ row.company or '—' }}</td>
-      <td class="pos-small">{{ row.city or '—' }}{% if row.state_province %}, {{ row.state_province }}{% endif %}</td>
+      <td class="pos-small" data-field="company" data-type="text"
+          data-value="{{ row.company or '' }}" tabindex="0">{{ row.company or '—' }}</td>
+      <td class="pos-small" data-field="city" data-type="text"
+          data-value="{{ row.city or '' }}" tabindex="0">{{ row.city or '—' }}</td>
+      <td class="pos-small" data-field="state_province" data-type="text"
+          data-value="{{ row.state_province or '' }}" tabindex="0">{{ row.state_province or '—' }}</td>
       <td data-field="manager_person_id" data-type="fk-select" data-options-src="#manager-options"
           data-value="{{ row.manager_id or '' }}" tabindex="0">{{ person_link(row.manager_id, row.manager_name) }}</td>
       <td data-field="status" data-type="select" data-options="active,inactive,departed"

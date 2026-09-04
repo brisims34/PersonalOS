@@ -52,6 +52,60 @@ def section(title):
     print(f"\n{title}\n{'-' * len(title)}")
 
 
+def scratch_app():
+    """An app bound to a throwaway copy of the database, seeded with rows.
+
+    Two reasons this exists rather than checking against the real database.
+    A check that writes — an inline edit, a created level — would mutate a
+    live roster, and this file is run routinely. And a check over an empty
+    table passes without proving anything, so the copy is seeded with enough
+    people for the filter and sort checks to be able to fail.
+
+    Returns (app, cleanup). The caller must call cleanup().
+    """
+    import shutil
+    import tempfile
+
+    from app import create_app
+    from app.core import paths as core_paths
+
+    workspace = tempfile.mkdtemp(prefix="personalos-healthcheck-")
+    copy = Path(workspace) / "healthcheck.db"
+    shutil.copy(core_paths.DB_PATH, copy)
+
+    app = create_app(run_migrations=False)
+    app.config["DATABASE_PATH"] = str(copy)
+
+    conn = sqlite3.connect(copy)
+    conn.row_factory = sqlite3.Row
+    try:
+        ladder = conn.execute(
+            "SELECT id FROM person_levels ORDER BY sort_order LIMIT 2"
+        ).fetchall()
+        levels = [row["id"] for row in ladder] or [None, None]
+        for n, (first, company, department, status, level) in enumerate((
+            ("Hilda", "Acme", "Advisory", "active", levels[0]),
+            ("Ivor", "Acme", "Tax", "active", levels[-1]),
+            ("Juno", "Beta Corp", "Advisory", "inactive", levels[0]),
+        )):
+            conn.execute(
+                "INSERT INTO people (first_name, last_name, full_name, email, "
+                "company, department, status, level_id, city, state_province) "
+                "VALUES (?, 'Healthcheck', ?, ?, ?, ?, ?, ?, 'Detroit', 'MI')",
+                (first, f"{first} Healthcheck",
+                 f"healthcheck-{n}@example.invalid", company, department,
+                 status, level),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    def cleanup():
+        shutil.rmtree(workspace, ignore_errors=True)
+
+    return app, cleanup
+
+
 def main():
     from app.core import paths
 
@@ -291,10 +345,41 @@ def main():
             check("the roster sorts in both directions",
                   client.get("/people/?sort=name&dir=asc").status_code == 200
                   and client.get("/people/?sort=name&dir=desc").status_code == 200)
+
     except ImportError as exc:
         check("create_app() succeeds", False, f"{exc} — install requirements.txt")
     except Exception as exc:
         check("create_app() succeeds", False, str(exc))
+
+    # --- 7b. the roster, against a seeded throwaway copy ---------------------
+    section("Contacts roster")
+    try:
+        from app.modules.people import models as people_models
+
+        scratch, cleanup = scratch_app()
+        try:
+            with scratch.app_context():
+                # A column's own filter is excluded from its own counts, so
+                # the menu still shows what else you could switch to.
+                everything = people_models.column_values("company")
+                narrowed = people_models.column_values("company", status="active")
+                level_menu = people_models.column_values("level")
+
+            check("column_values returns value/label/count rows",
+                  len(everything) >= 2
+                  and all({"value", "label", "n"} <= set(r.keys()) for r in everything),
+                  f"{len(everything)} companies")
+            check("a column's menu counts honour the other filters",
+                  sum(r["n"] for r in narrowed) < sum(r["n"] for r in everything),
+                  f"{sum(r['n'] for r in narrowed)} active of "
+                  f"{sum(r['n'] for r in everything)}")
+            check("the level menu keys on id, not label",
+                  level_menu and all(isinstance(r["value"], int) for r in level_menu),
+                  f"{len(level_menu)} level(s)")
+        finally:
+            cleanup()
+    except Exception as exc:
+        check("the roster checks run", False, str(exc))
 
     # --- 8. vendored assets -------------------------------------------------
     section("Vendored assets")

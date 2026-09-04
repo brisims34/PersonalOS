@@ -918,3 +918,26 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
 .pos-card-block:last-child { border-bottom: 0; }
 .pos-flash-info { border-left-color: var(--pos-accent); }
 details.pos-panel > summary { cursor: pointer; list-style: revert; }
+
+/* --- Table header sort and filter handles -------------------------------- */
+/* Both are plain links, so the table stays operable with JavaScript off. */
+.pos-th-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.pos-th-sort:hover { text-decoration: underline; }
+
+.pos-th-filter { display: inline-block; position: relative; }
+.pos-th-filter > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0 .25rem;
+  font-size: .85em;
+}
+.pos-th-filter > summary::-webkit-details-marker { display: none; }
+.pos-th-filter .pos-menu-panel {
+  position: absolute;
+  z-index: 20;
+  min-width: 12rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  text-align: left;
+  font-weight: 400;
+}

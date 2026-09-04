@@ -99,9 +99,12 @@ def index():
         sort=query["sort"], direction=query["direction"],
         limit=per_page, offset=(query["page"] - 1) * per_page, **filters
     )
+    menus = {column: models.column_values(column, **filters)
+             for column in models.FILTERABLE_COLUMNS}
 
     return render_template(
         "modules/people/index.html",
+        menus=menus,
         rows=rows,
         total=total,
         page=query["page"],

@@ -94,8 +94,35 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("[data-pos-table]").forEach(function (table) {
-      if (table.classList.contains("pos-table-sortable")) makeSortable(table);
+      /* A server-sorted table is ordered over the whole result set. Re-sorting
+       * the rendered page on top of that would reorder one page of many while
+       * appearing to have sorted everything. */
+      if (table.classList.contains("pos-table-sortable")
+          && !table.hasAttribute("data-pos-server-sort")) {
+        makeSortable(table);
+      }
       makeExportable(table);
+    });
+
+    /* One filter menu open at a time; Escape closes them. */
+    document.addEventListener("click", function (event) {
+      document.querySelectorAll("details.pos-th-filter[open]").forEach(function (menu) {
+        if (!menu.contains(event.target)) menu.removeAttribute("open");
+      });
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      document.querySelectorAll("details.pos-th-filter[open]").forEach(function (menu) {
+        menu.removeAttribute("open");
+      });
+    });
+
+    /* The CSP forbids inline handlers, so submit-on-change is wired here.
+     * The <noscript> button beside each control is the fallback. */
+    document.querySelectorAll("[data-pos-submit-on-change]").forEach(function (control) {
+      control.addEventListener("change", function () {
+        if (control.form) control.form.submit();
+      });
     });
   });
 })();
