@@ -31,6 +31,63 @@ def _effective(sql_alias, date_param="?"):
     )
 
 
+# A card's own range decides which of its entries apply. The danger in that is
+# two competing date filters — the card's and the entry's — disagreeing, which
+# is exactly how a rate resolves to the wrong fiscal year. So there is only
+# ever one window: the later of the two starts, the earlier of the two ends.
+# A NULL bound on either side is unbounded, which is what keeps every card
+# written before migration 0028 pricing exactly what it always did.
+_FAR_FUTURE = "9999-12-31"
+
+
+def _card_window(entry="e", card="c", date_param="?"):
+    return (
+        f"max({entry}.effective_from, "
+        f"coalesce({card}.effective_from, {entry}.effective_from)) <= {date_param} "
+        f"AND {date_param} <= min(coalesce({entry}.effective_to, '{_FAR_FUTURE}'), "
+        f"coalesce({card}.effective_to, '{_FAR_FUTURE}'))"
+    )
+
+
+def _fiscal_year_start():
+    from app.core import config
+
+    # MM-DD. Seeded 10-01; a firm running on the calendar year sets 01-01.
+    return config.get_setting("fiscal_year_start", "10-01")
+
+
+def fiscal_year_for(day):
+    """The fiscal year a date falls in.
+
+    With a start of 10-01, 1 October 2025 is the first day of FY2026: the year
+    is named for the calendar year it ends in, which is what everybody means
+    by FY26. `day` is always passed in — nothing here reads today's date
+    (CLAUDE.md rule 17).
+    """
+    return int(day[:4]) + (1 if day[5:10] >= _fiscal_year_start() else 0)
+
+
+def dates_for_fiscal_year(year):
+    """The first and last day of a fiscal year, as ISO dates."""
+    from datetime import date, timedelta
+
+    month, day = (int(part) for part in _fiscal_year_start().split("-"))
+    start = date(year, 1, 1) if (month, day) == (1, 1) else date(year - 1, month, day)
+    end = date(start.year + 1, start.month, start.day) - timedelta(days=1)
+    return start.isoformat(), end.isoformat()
+
+
+def entry_for(card_id, level_id, work_date):
+    """The rate row in force on this card, for this level, on this date."""
+    return get_db().execute(
+        "SELECT e.bill_rate, e.cost_rate FROM rate_card_entries e "
+        "JOIN rate_cards c ON c.id = e.rate_card_id "
+        f"WHERE e.rate_card_id = ? AND e.level_id = ? AND {_card_window()} "
+        "ORDER BY e.effective_from DESC LIMIT 1",
+        (card_id, level_id, work_date, work_date),
+    ).fetchone()
+
+
 def level_at(person_id, as_of):
     """The person's level on a given date.
 
@@ -95,12 +152,7 @@ def resolve_rates(person_id, work_date, project_id=None, charge_code_id=None,
 
     # 2. The card in force for this project or charge code.
     if card_id:
-        entry = db.execute(
-            "SELECT bill_rate, cost_rate FROM rate_card_entries e "
-            f"WHERE e.rate_card_id = ? AND e.level_id = ? AND {_effective('e')} "
-            "ORDER BY e.effective_from DESC LIMIT 1",
-            (card_id, level_id, work_date, work_date),
-        ).fetchone()
+        entry = entry_for(card_id, level_id, work_date)
         if entry and entry["bill_rate"] is not None:
             return _build(entry, resolved_erp, SOURCE_CARD, level_id, level_label)
 
@@ -112,7 +164,10 @@ def resolve_rates(person_id, work_date, project_id=None, charge_code_id=None,
         "SELECT e.bill_rate, e.cost_rate FROM rate_card_entries e "
         "JOIN rate_cards c ON c.id = e.rate_card_id "
         "WHERE c.is_default = 1 AND c.archived_at IS NULL AND e.level_id = ? "
-        f"AND {_effective('e')} "
+        # Same intersected window as entry_for: the default-card path must
+        # respect a card's range too, or the range would apply to some
+        # lookups and not others.
+        f"AND {_card_window()} "
         "AND (c.company = ? OR c.company IS NULL) "
         "ORDER BY c.company IS NULL, e.effective_from DESC LIMIT 1",
         (level_id, work_date, work_date, company["company"] if company else None),
@@ -284,6 +339,27 @@ def levels(on_ladder_only=False, include_archived=False):
         sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY sort_order"
     return get_db().execute(sql).fetchall()
+
+
+def rate_for_level(level_id, as_of, company=None):
+    """What this level bills and costs on a date, from the default card.
+
+    The levels screen says a level is what somebody bills at, so it has to be
+    able to show the number. This is the same default-card path
+    `resolve_rates()` falls back to — one window, card range intersected with
+    the entry's — so the two cannot disagree. `as_of` is passed in; nothing
+    here reads today (CLAUDE.md rule 17).
+    """
+    return get_db().execute(
+        "SELECT e.bill_rate, e.cost_rate, c.name AS card_name, c.id AS card_id, "
+        "       c.fiscal_year "
+        "FROM rate_card_entries e JOIN rate_cards c ON c.id = e.rate_card_id "
+        "WHERE c.is_default = 1 AND c.archived_at IS NULL AND e.level_id = ? "
+        f"AND {_card_window()} "
+        "AND (c.company = ? OR c.company IS NULL) "
+        "ORDER BY c.company IS NULL, e.effective_from DESC LIMIT 1",
+        (level_id, as_of, as_of, company),
+    ).fetchone()
 
 
 def list_levels():

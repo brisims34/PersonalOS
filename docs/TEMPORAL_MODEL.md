@@ -10,7 +10,11 @@ An unusual proportion of what PersonalOS knows is **true only as of a date**, an
 
 That is not incidental. It is the shape of the domain:
 
-- A rate is correct for a fiscal year
+- A rate is correct for a fiscal year — recorded on the card as
+  `fiscal_year` plus the `effective_from`/`effective_to` it is in force for,
+  and the card's range decides which of its entries apply. An entry's window is
+  intersected with its card's, so there is one window rather than two date
+  filters that could disagree. A NULL bound is unbounded.
 - A level is correct until a promotion
 - An assignment is real until its end date
 - A training certificate is valid until it expires

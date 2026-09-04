@@ -594,6 +594,89 @@ def main():
                 check("an unknown reason is refused",
                       nonsense.get_json().get("ok") is False,
                       str(nonsense.get_json()))
+
+            with scratch.app_context():
+                columns = {row["name"] for row in
+                           get_db().execute("PRAGMA table_info(rate_cards)")}
+            check("rate_cards records its fiscal year and dates",
+                  {"fiscal_year", "effective_from", "effective_to"} <= columns,
+                  "missing " + ", ".join(sorted(
+                      {"fiscal_year", "effective_from", "effective_to"} - columns)))
+
+            # The card's range decides, but as one window intersected with the
+            # entry's — two competing date filters is how a rate resolves to
+            # the wrong fiscal year. The entries below are deliberately wider
+            # than their cards on both sides.
+            with scratch.app_context():
+                db = get_db()
+                level_id = core_rates.levels()[0]["id"]
+                bounded = db.execute(
+                    "INSERT INTO rate_cards (name, company, scope, fiscal_year, "
+                    "effective_from, effective_to) VALUES "
+                    "('Health Check FY26', 'HC', 'standard', 2026, "
+                    "'2025-10-01', '2026-09-30')"
+                ).lastrowid
+                unbounded = db.execute(
+                    "INSERT INTO rate_cards (name, company, scope) "
+                    "VALUES ('Health Check Undated', 'HC', 'standard')"
+                ).lastrowid
+                for card in (bounded, unbounded):
+                    db.execute(
+                        "INSERT INTO rate_card_entries (rate_card_id, level_id, "
+                        "bill_rate, cost_rate, effective_from, effective_to) "
+                        "VALUES (?, ?, 500, 250, '2020-01-01', '2030-01-01')",
+                        (card, level_id),
+                    )
+                db.commit()
+
+                inside = core_rates.entry_for(bounded, level_id, "2026-01-15")
+                before = core_rates.entry_for(bounded, level_id, "2025-06-15")
+                after = core_rates.entry_for(bounded, level_id, "2026-12-15")
+                # The same date the bounded card refuses. Inside the entry,
+                # outside any card range — so only the card's bounds could
+                # exclude it, and an undated card has none.
+                undated = core_rates.entry_for(unbounded, level_id, "2026-12-15")
+
+            check("a date inside the card prices", inside is not None)
+            check("a date before the card does not price, though the entry covers it",
+                  before is None)
+            check("a date after the card does not price, though the entry covers it",
+                  after is None)
+            check("a card with no dates is unbounded — nothing repriced by 0028",
+                  undated is not None)
+
+            # fiscal_year_start is seeded 10-01, so FY2026 runs 1 Oct 2025 to
+            # 30 Sep 2026 — the year is named for the one it ends in.
+            with scratch.app_context():
+                check("a date in October belongs to the next fiscal year",
+                      core_rates.fiscal_year_for("2025-10-01") == 2026,
+                      str(core_rates.fiscal_year_for("2025-10-01")))
+                check("a date in September belongs to the current one",
+                      core_rates.fiscal_year_for("2026-09-30") == 2026,
+                      str(core_rates.fiscal_year_for("2026-09-30")))
+                check("a fiscal year maps back to its dates",
+                      core_rates.dates_for_fiscal_year(2026)
+                      == ("2025-10-01", "2026-09-30"),
+                      str(core_rates.dates_for_fiscal_year(2026)))
+
+                # The levels screen has to be able to show what a level bills
+                # at, and must read it through the same window resolve_rates
+                # uses or the screen and the money would disagree.
+                # A fresh handle: the connection from the previous app context
+                # is closed with it.
+                fresh_db = get_db()
+                fresh_db.execute(
+                    "UPDATE rate_cards SET is_default = 1, company = NULL WHERE id = ?",
+                    (bounded,))
+                fresh_db.commit()
+                priced = core_rates.rate_for_level(level_id, "2026-01-15")
+                out_of_year = core_rates.rate_for_level(level_id, "2025-06-15")
+
+            check("a level shows the rate in force on the date",
+                  priced is not None and priced["bill_rate"] == 500,
+                  str(dict(priced)) if priced else "none")
+            check("and shows nothing outside the card's fiscal year",
+                  out_of_year is None)
         finally:
             cleanup()
     except Exception as exc:

@@ -17,14 +17,17 @@
 <section class="pos-panel">
   <h2 class="pos-panel-heading">The ladder</h2>
   <p class="pos-muted pos-small">
-    Sorted most senior first. The four counts are what depends on each level —
-    click one to see the rows behind it.
+    Sorted most senior first, showing what each level prices at on
+    {{ as_of | date_long }} from the default rate card — click a rate to open
+    the card it came from. The four counts are what depends on each level.
   </p>
   <table class="pos-table pos-table-compact">
     <caption class="pos-visually-hidden">Person levels and what references them</caption>
     <thead>
       <tr>
         <th scope="col">Level</th>
+        <th scope="col" class="pos-num">Bill rate</th>
+        <th scope="col" class="pos-num">Cost rate</th>
         <th scope="col" class="pos-num">People</th>
         <th scope="col" class="pos-num">Rate entries</th>
         <th scope="col" class="pos-num">Title maps</th>
@@ -55,6 +58,20 @@
             </label>
             <button type="submit" class="pos-btn pos-btn-small">Save</button>
           </form>
+        </td>
+        {% set priced = rates_at[level.id] %}
+        <td class="pos-num">
+          {% if priced and priced.bill_rate is not none %}
+            <a class="pos-trace" href="{{ url_for('rates.card', card_id=priced.card_id) }}"
+               title="{{ priced.card_name }}{% if priced.fiscal_year %} · FY{{ priced.fiscal_year }}{% endif %}">${{ '%0.2f' | format(priced.bill_rate) }}</a>
+          {% else %}
+            <span class="pos-badge pos-badge-danger">no rate</span>
+          {% endif %}
+        </td>
+        <td class="pos-num">
+          {% if priced and priced.cost_rate is not none %}
+            ${{ '%0.2f' | format(priced.cost_rate) }}
+          {% else %}—{% endif %}
         </td>
         <td class="pos-num">
           {% if counts.people %}

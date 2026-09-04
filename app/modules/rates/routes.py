@@ -58,6 +58,32 @@ def card(card_id):
     )
 
 
+def _card_period():
+    """The card's fiscal year and the dates it is in force.
+
+    Fill either half and the other follows. A contradictory pair is refused
+    rather than silently resolved: "which one did it believe" is not a
+    question you want to have to ask of a rate card. Raises ValueError with
+    the message to show.
+    """
+    fiscal_year = request.form.get("fiscal_year", type=int)
+    effective_from = request.form.get("effective_from") or None
+    effective_to = request.form.get("effective_to") or None
+
+    if fiscal_year and not effective_from and not effective_to:
+        effective_from, effective_to = rates.dates_for_fiscal_year(fiscal_year)
+    elif effective_from and not fiscal_year:
+        fiscal_year = rates.fiscal_year_for(effective_from)
+    elif fiscal_year and effective_from:
+        implied = rates.fiscal_year_for(effective_from)
+        if implied != fiscal_year:
+            raise ValueError(
+                f"Not saved — {effective_from} falls in FY{implied}, not "
+                f"FY{fiscal_year}. Fix one of the two."
+            )
+    return fiscal_year, effective_from, effective_to
+
+
 @bp.post("/cards")
 def create_card():
     name = (request.form.get("name") or "").strip()
@@ -69,6 +95,12 @@ def create_card():
     company = (request.form.get("company") or "").strip() or None
     is_default = 1 if request.form.get("is_default") == "1" else 0
 
+    try:
+        fiscal_year, effective_from, effective_to = _card_period()
+    except ValueError as mismatch:
+        flash(str(mismatch), "error")
+        return redirect(url_for("rates.index"))
+
     db = get_db()
     if is_default:
         # Only one default per company, or the fallback lookup is ambiguous.
@@ -79,9 +111,11 @@ def create_card():
         )
     try:
         cursor = db.execute(
-            "INSERT INTO rate_cards (name, company, scope, is_default, note) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (name, company, scope, is_default, request.form.get("note") or None),
+            "INSERT INTO rate_cards (name, company, scope, is_default, note, "
+            "fiscal_year, effective_from, effective_to) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, company, scope, is_default, request.form.get("note") or None,
+             fiscal_year, effective_from, effective_to),
         )
         db.commit()
     except Exception:
@@ -106,6 +140,23 @@ def save_entries(card_id):
     effective_from = request.form.get("effective_from")
     if not effective_from:
         flash("Rates need an effective date — that is what makes them year-aware.", "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    # The card's range decides, so an entry outside it could never price
+    # anything. Accepting one silently is how you get a rate card that looks
+    # complete and prices nothing.
+    outside = (
+        (record["effective_from"] and effective_from < record["effective_from"])
+        or (record["effective_to"] and effective_from > record["effective_to"])
+    )
+    if outside:
+        flash(
+            f"Not saved — “{record['name']}” is in force "
+            f"{record['effective_from'] or 'from any date'} to "
+            f"{record['effective_to'] or 'any date'}, so rates effective "
+            f"{effective_from} would never price anything.",
+            "error",
+        )
         return redirect(url_for("rates.card", card_id=card_id))
 
     db = get_db()
@@ -221,11 +272,15 @@ def calculator():
 
 @bp.get("/levels")
 def levels_index():
+    as_of = request.args.get("as_of") or date.today().isoformat()
     ladder = rates.list_levels()
     return render_template(
         "modules/rates/levels.html",
         levels=ladder,
+        as_of=as_of,
         usage={level["id"]: rates.level_usage(level["id"]) for level in ladder},
+        rates_at={level["id"]: rates.rate_for_level(level["id"], as_of)
+                  for level in ladder},
         crumbs=[CRUMB, "Levels"],
     )
 

@@ -57,6 +57,7 @@ Migration number tracks build phase. Each table is created by exactly one migrat
 | `0025_quicksteps.sql` | 23 | Quick steps, quick step runs |
 | `0026_tasks_nav_group.sql` | 4 | Seed-data fix — moves `tasks` from `nav_group='Command'` to `nav_group='Work'` in `module_registry` (no table changes) |
 | `0027_person_levels_archive.sql` | 2 | Adds `person_levels.archived_at` so a level can be retired without unpricing the history that references it |
+| `0028_rate_card_effective_dates.sql` | 3 | Adds `rate_cards.fiscal_year`, `effective_from`, `effective_to`; the card's range decides which of its entries apply |
 
 ---
 
@@ -3395,3 +3396,48 @@ it for logic. The column itself stays because SQLite refuses to drop a UNIQUE
 column, and rebuilding a table that four foreign keys point into would be
 open-heart surgery on the ladder that prices everything, for no behaviour
 change. New rows fill it with a slug of the label plus the row id.
+
+---
+
+# 0028 — Rate Card Effective Dates
+
+A card's fiscal year was implied by its entries' dates rather than recorded —
+`app/modules/rates/routes.py` groups entries by `effective_from` so that a year
+reads as one block, and this document already claimed "one card per fiscal
+year" while nothing stored which one. `0028_rate_card_effective_dates.sql`
+records it:
+
+```sql
+ALTER TABLE rate_cards ADD COLUMN fiscal_year    INTEGER;
+ALTER TABLE rate_cards ADD COLUMN effective_from DATE;
+ALTER TABLE rate_cards ADD COLUMN effective_to   DATE;
+```
+
+The fiscal year is derived from `app_settings.fiscal_year_start` (seeded
+`10-01`), so FY2026 runs 1 October 2025 to 30 September 2026 — a year is named
+for the calendar year it ends in. Fill either the year or the dates on a card
+and the other is derived; a contradictory pair is refused naming both values.
+
+**The card's dates decide which of its entries apply.** The risk in that is two
+competing date filters — the card's and the entry's — disagreeing inside
+`resolve_rates()`, which is how a rate quietly resolves to the wrong fiscal
+year. So there is only ever one window, the intersection of the two: the later
+of the two starts, the earlier of the two ends.
+
+```sql
+  AND max(e.effective_from, coalesce(c.effective_from, e.effective_from)) <= :work_date
+  AND :work_date <= min(coalesce(e.effective_to, '9999-12-31'),
+                        coalesce(c.effective_to, '9999-12-31'))
+```
+
+`rates._card_window()` is that clause, and every path in `resolve_rates()` that
+reads `rate_card_entries` goes through it — a range that applied to some
+lookups and not others would be worse than no range at all.
+
+**A NULL bound is unbounded.** The migration backfills `fiscal_year` for
+display from each card's earliest entry, and deliberately leaves the date
+columns NULL, so every card written before this change prices exactly what it
+always priced. Setting a real range is a deliberate act, card by card. Because
+the card's range decides, the entry editor refuses an entry dated outside its
+card: such an entry could never price anything, and accepting it silently is
+how you get a rate card that looks complete and prices nothing.

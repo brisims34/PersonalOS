@@ -85,7 +85,21 @@ flowchart LR
 
 ### Standard rate → engagement rate
 
-The rate card carries **standard rates by level, by fiscal year**. Two things can turn a standard rate into the rate actually billed:
+The rate card carries **standard rates by level, by fiscal year**. The year is
+recorded on the card itself — `rate_cards.fiscal_year`, with `effective_from`
+and `effective_to` for the dates it is in force — rather than being inferred
+from its entries' dates. FY2026 runs 1 October 2025 to 30 September 2026, from
+`app_settings.fiscal_year_start`.
+
+**The card's dates decide which of its entries apply.** An entry's window is
+intersected with its card's — the later of the two starts, the earlier of the
+two ends — so `resolve_rates()` has one window rather than two date filters
+that could disagree and resolve a rate to the wrong year. A NULL bound on
+either side is unbounded, which is why a card carrying no dates prices exactly
+what it always did. An entry dated outside its card is refused when saved: it
+could never price anything.
+
+Two things can turn a standard rate into the rate actually billed:
 
 | Mechanism | When | Effect |
 |---|---|---|

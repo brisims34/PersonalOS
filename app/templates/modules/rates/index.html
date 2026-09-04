@@ -42,6 +42,7 @@
   <table class="pos-table">
     <thead>
       <tr><th scope="col">Card</th><th scope="col">Scope</th><th scope="col">Company</th>
+          <th scope="col">Fiscal year</th><th scope="col">In force</th>
           <th scope="col">Project</th><th scope="col" class="pos-num">Rates set</th>
           <th scope="col">Default</th></tr>
     </thead>
@@ -51,6 +52,15 @@
         <td><a href="{{ url_for('rates.card', card_id=row.id) }}">{{ row.name }}</a></td>
         <td><span class="pos-badge pos-badge-neutral">{{ row.scope }}</span></td>
         <td class="pos-small">{{ row.company or 'any' }}</td>
+        <td class="pos-small">{{ 'FY' ~ row.fiscal_year if row.fiscal_year else '—' }}</td>
+        <td class="pos-small">
+          {% if row.effective_from or row.effective_to %}
+            {{ row.effective_from | date_long if row.effective_from else 'any date' }}
+            to {{ row.effective_to | date_long if row.effective_to else 'any date' }}
+          {% else %}
+            <span class="pos-muted">any date</span>
+          {% endif %}
+        </td>
         <td class="pos-small">{{ row.project_name or '—' }}</td>
         <td class="pos-num">
           {% if row.entry_count %}{{ row.entry_count | num }}
@@ -95,10 +105,28 @@
       <label for="cd">Default for that company</label>
       <select id="cd" name="is_default"><option value="0">No</option><option value="1">Yes</option></select>
     </div>
+    <div class="pos-field">
+      <label for="cfy">Fiscal year</label>
+      <input type="number" id="cfy" name="fiscal_year" placeholder="2026">
+    </div>
+    <div class="pos-field">
+      <label for="cef">In force from</label>
+      <input type="date" id="cef" name="effective_from">
+    </div>
+    <div class="pos-field">
+      <label for="cet">In force to</label>
+      <input type="date" id="cet" name="effective_to">
+    </div>
     <div class="pos-field pos-field-actions">
       <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Create card</button>
     </div>
   </form>
+  <p class="pos-muted pos-small">
+    Fill either the fiscal year or the dates and the other follows — FY2026 runs
+    1 October 2025 to 30 September 2026. A card's dates decide which of its rates
+    apply, and a card left undated is in force for any date, which is how every
+    card written before this existed keeps pricing what it always did.
+  </p>
   <p class="pos-muted pos-small">
     Company scopes the card because offshore cost rates differ from US rates by a
     large multiple. Mis-scoping understates cost on every blended engagement.
