@@ -286,6 +286,115 @@ def levels(on_ladder_only=False, include_archived=False):
     return get_db().execute(sql).fetchall()
 
 
+def list_levels():
+    """The whole ladder, archived rows included. For the levels screen."""
+    return get_db().execute(
+        "SELECT * FROM person_levels ORDER BY sort_order DESC"
+    ).fetchall()
+
+
+def level_usage(level_id):
+    """What would break if this level went away.
+
+    Shown before any destructive action, and each count links to its rows on
+    the screen, so "128 people" is checkable rather than a number to trust.
+    """
+    db = get_db()
+    return {
+        key: db.execute(sql, (level_id,)).fetchone()["n"]
+        for key, sql in (
+            ("people", "SELECT COUNT(*) AS n FROM people WHERE level_id = ?"),
+            ("rate_entries",
+             "SELECT COUNT(*) AS n FROM rate_card_entries WHERE level_id = ?"),
+            ("title_maps",
+             "SELECT COUNT(*) AS n FROM job_title_map WHERE level_id = ?"),
+            ("history",
+             "SELECT COUNT(*) AS n FROM person_level_history WHERE level_id = ?"),
+        )
+    }
+
+
+def label_or_order_taken(label, sort_order, exclude_id=None):
+    """Which uniqueness rule this would break, or None.
+
+    Label and sort order carry the ladder's meaning now that level_key is
+    retired, so two live levels sharing either one would leave "the level
+    above Manager" with no defined answer.
+    """
+    db = get_db()
+    clash = db.execute(
+        "SELECT label FROM person_levels "
+        "WHERE archived_at IS NULL AND lower(label) = lower(?) AND id IS NOT ?",
+        (label, exclude_id),
+    ).fetchone()
+    if clash:
+        return f"another level is already called {clash['label']}"
+
+    clash = db.execute(
+        "SELECT label FROM person_levels "
+        "WHERE archived_at IS NULL AND sort_order = ? AND id IS NOT ?",
+        (sort_order, exclude_id),
+    ).fetchone()
+    if clash:
+        return f"{clash['label']} already sorts at {sort_order}"
+    return None
+
+
+def create_level(label, sort_order, is_on_ladder=1):
+    """Insert a level. The row id is the identifier; level_key is filled and
+    then never read — it exists only to satisfy a UNIQUE NOT NULL column that
+    SQLite will not let us drop."""
+    from app.core.paths import safe_slug
+
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO person_levels (level_key, label, sort_order, is_on_ladder) "
+        "VALUES (?, ?, ?, ?)",
+        (f"pending-{safe_slug(label)}-{sort_order}", label, sort_order, is_on_ladder),
+    )
+    level_id = cursor.lastrowid
+    db.execute("UPDATE person_levels SET level_key = ? WHERE id = ?",
+               (f"{safe_slug(label)}-{level_id}", level_id))
+    db.commit()
+    return level_id
+
+
+LEVEL_WRITABLE = ("label", "sort_order", "is_on_ladder",
+                  "auto_promote_to_level_id", "auto_promote_after_months")
+
+
+def update_level(level_id, fields):
+    payload = {k: v for k, v in fields.items() if k in LEVEL_WRITABLE}
+    if not payload:
+        return 0
+    assignments = ", ".join(f"{column} = ?" for column in payload)
+    db = get_db()
+    cursor = db.execute(
+        f"UPDATE person_levels SET {assignments} WHERE id = ?",
+        list(payload.values()) + [level_id],
+    )
+    db.commit()
+    return cursor.rowcount
+
+
+def set_level_archived(level_id, archived=True):
+    db = get_db()
+    stamp = "datetime('now')" if archived else "NULL"
+    cursor = db.execute(
+        f"UPDATE person_levels SET archived_at = {stamp} WHERE id = ?", (level_id,)
+    )
+    db.commit()
+    return cursor.rowcount
+
+
+def delete_level(level_id):
+    """Only ever called after level_usage() comes back empty."""
+    db = get_db()
+    cursor = db.execute("DELETE FROM person_levels WHERE id = ?", (level_id,))
+    db.commit()
+    return cursor.rowcount
+
+
 def overrides_for(person_id):
     return get_db().execute(
         "SELECT o.*, c.name AS card_name FROM person_rate_overrides o "

@@ -209,3 +209,111 @@ def calculator():
         history=people_models.level_history(person_id) if person_id else [],
         crumbs=[CRUMB, "Rate calculator"],
     )
+
+
+# --- the level ladder -------------------------------------------------------
+#
+# Levels live here rather than in their own module because they are the
+# rate-bearing ladder: rate cards price by level, and a level with no card
+# entry prices nothing. The identifier is the row id; label and sort order
+# carry the meaning, and both are kept unique among live levels.
+
+
+@bp.get("/levels")
+def levels_index():
+    ladder = rates.list_levels()
+    return render_template(
+        "modules/rates/levels.html",
+        levels=ladder,
+        usage={level["id"]: rates.level_usage(level["id"]) for level in ladder},
+        crumbs=[CRUMB, "Levels"],
+    )
+
+
+def _level_form():
+    label = (request.form.get("label") or "").strip()
+    sort_order = request.form.get("sort_order", type=int)
+    on_ladder = 1 if request.form.get("is_on_ladder") else 0
+    return label, sort_order, on_ladder
+
+
+@bp.post("/levels")
+def create_level():
+    label, sort_order, on_ladder = _level_form()
+    if not label or sort_order is None:
+        flash("A level needs a name and a sort order.", "error")
+        return redirect(url_for("rates.levels_index"))
+
+    clash = rates.label_or_order_taken(label, sort_order)
+    if clash:
+        flash(f"Not created — {clash}.", "error")
+        return redirect(url_for("rates.levels_index"))
+
+    level_id = rates.create_level(label, sort_order, on_ladder)
+    activity.log("rate_card", level_id, "created", f"Added the level {label}")
+    flash(
+        f"{label} added to the ladder at sort order {sort_order}. It has no "
+        "rate-card entries yet, so nobody prices from it until you add one.",
+        "success",
+    )
+    return redirect(url_for("rates.levels_index"))
+
+
+@bp.post("/levels/<int:level_id>")
+def update_level(level_id):
+    label, sort_order, on_ladder = _level_form()
+    if not label or sort_order is None:
+        flash("A level needs a name and a sort order.", "error")
+        return redirect(url_for("rates.levels_index"))
+
+    clash = rates.label_or_order_taken(label, sort_order, exclude_id=level_id)
+    if clash:
+        flash(f"Not saved — {clash}.", "error")
+        return redirect(url_for("rates.levels_index"))
+
+    rates.update_level(level_id, {"label": label, "sort_order": sort_order,
+                                  "is_on_ladder": on_ladder})
+    activity.log("rate_card", level_id, "updated", f"Updated the level {label}")
+    flash(f"{label} saved.", "success")
+    return redirect(url_for("rates.levels_index"))
+
+
+@bp.post("/levels/<int:level_id>/archive")
+def archive_level(level_id):
+    rates.set_level_archived(level_id, True)
+    activity.log("rate_card", level_id, "archived", f"Archived level {level_id}")
+    flash(
+        "Level archived. It is gone from the pickers, and every rate-card "
+        "entry and history row that referenced it is untouched and still prices.",
+        "success",
+    )
+    return redirect(url_for("rates.levels_index"))
+
+
+@bp.post("/levels/<int:level_id>/restore")
+def restore_level(level_id):
+    rates.set_level_archived(level_id, False)
+    activity.log("rate_card", level_id, "restored", f"Restored level {level_id}")
+    flash("Level restored — it is selectable again.", "success")
+    return redirect(url_for("rates.levels_index"))
+
+
+@bp.post("/levels/<int:level_id>/delete")
+def delete_level(level_id):
+    usage = rates.level_usage(level_id)
+    if any(usage.values()):
+        held = ", ".join(f"{count} {name.replace('_', ' ')}"
+                         for name, count in usage.items() if count)
+        flash(
+            f"This level cannot be deleted — {held} still reference it. Archive "
+            "it instead: that hides it from the pickers and leaves every priced "
+            "row exactly as it is.",
+            "error",
+        )
+        return redirect(url_for("rates.levels_index"))
+
+    rates.delete_level(level_id)
+    activity.log("rate_card", level_id, "deleted",
+                 f"Deleted the unused level {level_id}")
+    flash("Level deleted. Nothing referenced it.", "success")
+    return redirect(url_for("rates.levels_index"))

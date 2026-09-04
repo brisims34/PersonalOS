@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Levels{% endblock %}
+
+{% block content %}
+<header class="pos-page-head">
+  <div>
+    <h1 class="pos-page-title">Levels</h1>
+    <p class="pos-page-subtitle">
+      The rate-bearing ladder. Rate cards price by level, so a level is not a
+      label — it is what somebody bills at. Retiring one archives it, and every
+      rate-card entry and history row that referenced it keeps pricing exactly
+      as before.
+    </p>
+  </div>
+</header>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">The ladder</h2>
+  <p class="pos-muted pos-small">
+    Sorted most senior first. The four counts are what depends on each level —
+    click one to see the rows behind it.
+  </p>
+  <table class="pos-table pos-table-compact">
+    <caption class="pos-visually-hidden">Person levels and what references them</caption>
+    <thead>
+      <tr>
+        <th scope="col">Level</th>
+        <th scope="col" class="pos-num">Sort</th>
+        <th scope="col">On ladder</th>
+        <th scope="col" class="pos-num">People</th>
+        <th scope="col" class="pos-num">Rate entries</th>
+        <th scope="col" class="pos-num">Title maps</th>
+        <th scope="col" class="pos-num">History</th>
+        <th scope="col">State</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for level in levels %}
+      {% set counts = usage[level.id] %}
+      {% set referenced = counts.people or counts.rate_entries
+                          or counts.title_maps or counts.history %}
+      <tr {% if level.archived_at %}class="pos-row-archived"{% endif %}>
+        <td>
+          <form class="pos-inline-form" method="post"
+                action="{{ url_for('rates.update_level', level_id=level.id) }}">
+            <label class="pos-visually-hidden" for="label-{{ level.id }}">Name</label>
+            <input type="text" id="label-{{ level.id }}" name="label"
+                   value="{{ level.label }}" required>
+            <label class="pos-visually-hidden" for="sort-{{ level.id }}">Sort order</label>
+            <input type="number" id="sort-{{ level.id }}" name="sort_order"
+                   value="{{ level.sort_order }}" required>
+            <label>
+              <input type="checkbox" name="is_on_ladder" value="1"
+                     {% if level.is_on_ladder %}checked{% endif %}>
+              <span class="pos-visually-hidden">On the rate ladder</span>
+            </label>
+            <button type="submit" class="pos-btn pos-btn-small">Save</button>
+          </form>
+        </td>
+        <td class="pos-num">{{ level.sort_order | num }}</td>
+        <td>{{ 'yes' if level.is_on_ladder else 'no' }}</td>
+        <td class="pos-num">
+          {% if counts.people %}
+          <a class="pos-trace" href="{{ url_for('people.index', level_id=level.id) }}">{{ counts.people | num }}</a>
+          {% else %}0{% endif %}
+        </td>
+        <td class="pos-num">{{ counts.rate_entries | num }}</td>
+        <td class="pos-num">
+          {% if counts.title_maps %}
+          <a class="pos-trace" href="{{ url_for('people.titles') }}">{{ counts.title_maps | num }}</a>
+          {% else %}0{% endif %}
+        </td>
+        <td class="pos-num">{{ counts.history | num }}</td>
+        <td>
+          {% if level.archived_at %}
+            <span class="pos-badge pos-badge-archived">archived</span>
+          {% else %}
+            <span class="pos-badge pos-badge-ok">active</span>
+          {% endif %}
+        </td>
+        <td>
+          <form class="pos-inline-form" method="post"
+                action="{{ url_for('rates.restore_level', level_id=level.id)
+                           if level.archived_at
+                           else url_for('rates.archive_level', level_id=level.id) }}">
+            <button type="submit" class="pos-btn pos-btn-small">
+              {{ 'Restore' if level.archived_at else 'Archive' }}
+            </button>
+          </form>
+          {% if not referenced %}
+          <form class="pos-inline-form" method="post"
+                action="{{ url_for('rates.delete_level', level_id=level.id) }}">
+            <button type="submit" class="pos-btn pos-btn-small">Delete</button>
+          </form>
+          {% else %}
+          <span class="pos-muted pos-small">
+            in use — archive instead
+          </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="pos-panel">
+  <h2 class="pos-panel-heading">Add a level</h2>
+  <p class="pos-muted pos-small">
+    A new level prices at nothing until a rate card carries an entry for it.
+    Sort order is what makes one level senior to another; two live levels
+    cannot share a name or a sort order.
+  </p>
+  <form method="post" action="{{ url_for('rates.create_level') }}">
+    <div class="pos-field">
+      <label for="l-label">Name</label>
+      <input type="text" id="l-label" name="label" required>
+    </div>
+    <div class="pos-field">
+      <label for="l-sort">Sort order — higher is more senior</label>
+      <input type="number" id="l-sort" name="sort_order" required>
+    </div>
+    <div class="pos-field">
+      <label for="l-ladder">
+        <input type="checkbox" id="l-ladder" name="is_on_ladder" value="1" checked>
+        On the rate ladder
+      </label>
+    </div>
+    <div class="pos-page-actions">
+      <button type="submit" class="pos-btn pos-btn-primary">Add level</button>
+      <a class="pos-btn" href="{{ url_for('rates.index') }}">Back to rates</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

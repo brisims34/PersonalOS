@@ -276,6 +276,7 @@ def main():
                 ("/portfolios/", 200), ("/charge-codes/", 200), ("/people/", 200),
                 ("/people/titles", 200), ("/people/import", 200),
                 ("/org-chart/", 200), ("/rates/", 200), ("/rates/calculator", 200),
+                ("/rates/levels", 200),
                 ("/notes/", 200), ("/notes/reports/unresolved", 200),
                 ("/search/", 200), ("/activity/", 200),
                 ("/shell/palette.json", 200), ("/no-such-page", 404),
@@ -476,6 +477,76 @@ def main():
                   f"{visible_before} → {visible_after}")
             check("include_archived still returns it",
                   everything == visible_before, f"{everything} of {visible_before}")
+
+            with scratch.test_client() as ladder_client:
+                check("GET /rates/levels → 200",
+                      ladder_client.get("/rates/levels").status_code == 200,
+                      f"got {ladder_client.get('/rates/levels').status_code}")
+
+                with scratch.app_context():
+                    usage = core_rates.level_usage(core_rates.list_levels()[0]["id"])
+                check("level_usage counts all four dependants",
+                      {"people", "rate_entries", "title_maps", "history"} <= set(usage),
+                      str(sorted(usage)))
+
+                origin = {"Origin": "http://localhost"}
+                made = ladder_client.post(
+                    "/rates/levels",
+                    data={"label": "Health Check Level", "sort_order": 9999},
+                    headers=origin, follow_redirects=True)
+                with scratch.app_context():
+                    fresh = [l for l in core_rates.list_levels()
+                             if l["label"] == "Health Check Level"]
+                check("a level can be created", len(fresh) == 1,
+                      f"{len(fresh)} found, status {made.status_code}")
+
+                if fresh:
+                    new_id = fresh[0]["id"]
+                    check("a created level gets a generated key it never shows",
+                          bool(fresh[0]["level_key"]) and fresh[0]["level_key"] != "",
+                          fresh[0]["level_key"])
+
+                    dupe = ladder_client.post(
+                        "/rates/levels",
+                        data={"label": "Health Check Level", "sort_order": 8888},
+                        headers=origin, follow_redirects=True)
+                    check("a duplicate label is refused, and says so",
+                          "already called" in dupe.get_data(as_text=True))
+                    clash = ladder_client.post(
+                        "/rates/levels",
+                        data={"label": "Another Level", "sort_order": 9999},
+                        headers=origin, follow_redirects=True)
+                    check("a duplicate sort order is refused, and says so",
+                          "already sorts at" in clash.get_data(as_text=True))
+
+                    ladder_client.post(f"/rates/levels/{new_id}/archive",
+                                       headers=origin)
+                    with scratch.app_context():
+                        labels = [l["label"] for l in core_rates.levels()]
+                    check("archiving takes a level out of the pickers",
+                          "Health Check Level" not in labels)
+
+                    ladder_client.post(f"/rates/levels/{new_id}/delete", headers=origin)
+                    with scratch.app_context():
+                        remaining = [l["id"] for l in core_rates.list_levels()]
+                    check("an unreferenced level can be deleted",
+                          new_id not in remaining)
+
+                # A level something references must survive a delete attempt,
+                # and the refusal has to say what is holding it.
+                with scratch.app_context():
+                    referenced = next(
+                        (l["id"] for l in core_rates.list_levels()
+                         if any(core_rates.level_usage(l["id"]).values())), None)
+                if referenced:
+                    refusal = ladder_client.post(
+                        f"/rates/levels/{referenced}/delete",
+                        headers=origin, follow_redirects=True)
+                    with scratch.app_context():
+                        survived = referenced in [l["id"] for l in core_rates.list_levels()]
+                    check("deleting a level in use is refused", survived)
+                    check("and the refusal names what still references it",
+                          "cannot be deleted" in refusal.get_data(as_text=True))
         finally:
             cleanup()
     except Exception as exc:
