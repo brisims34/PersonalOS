@@ -4,6 +4,11 @@
 **Branch:** `contacts-table-upgrade`
 **Status:** approved — ready for an implementation plan
 
+Sections A–F are the contacts roster and the levels admin screen. Section G —
+fiscal year and effective dates on rate cards — is the money subsystem, and is
+sequenced after them so the roster work does not wait behind a change to how
+rates resolve.
+
 Builds on `2026-09-02-inline-table-editing-design.md`, which defines the
 inline-edit mechanism (the `data-edit-base` / `data-field` / `data-type`
 contract, the `POST /<module>/<id>/field` route shape, and the
@@ -186,17 +191,41 @@ its own picker.
 Under Budgets & Rates, not a new module — levels are the rate-bearing ladder and
 rate cards price by them.
 
-`GET /rates/levels` lists the ladder in sort order: label, key, sort order,
+`GET /rates/levels` lists the ladder in sort order: label, sort order,
 on-ladder flag, archived state, and **usage counts** — people on it, rate-card
 entries priced at it, job-title mappings pointing at it, level-history rows
 referencing it. Each count links to the rows behind it (P3).
+
+### The identifier is the row id
+
+`person_levels.id` is already `INTEGER PRIMARY KEY AUTOINCREMENT`, and every
+foreign key that matters — `people.level_id`, `rate_card_entries.level_id`,
+`job_title_map.level_id`, `person_level_history.level_id` — already points at
+it. It is the immutable numeric key; nothing else needs to be.
+
+`level_key` carries no logic today. It appears in six queries as a projection,
+is discarded unused at `app/core/rates.py:79`, and no template renders it. Its
+only real job was identifying seed rows in `0002_people.sql`.
+
+So it is **retired rather than removed**: it disappears from this screen and
+from every query the application uses for logic, and new levels auto-fill it
+with a slug of the label plus the row id to satisfy its `NOT NULL UNIQUE`
+constraint. The column stays because SQLite refuses to drop a UNIQUE column
+(`cannot drop UNIQUE column: "level_key"`), so removing it would mean rebuilding
+a table that four foreign keys point into — open-heart surgery on the table that
+prices all the money, for no behaviour change.
+
+Because label and sort order now carry the meaning, the create and update routes
+enforce both as **unique among non-archived levels**. Without that, "the level
+above Manager" has no defined answer. This is enforced in the route rather than
+by a schema constraint, for the same rebuild reason.
 
 Mutations are all POST (rule 4) and all activity-logged (rule 13):
 
 - `POST /rates/levels` — create.
 - `POST /rates/levels/<id>` — update label, sort order, on-ladder flag, and the
-  auto-promotion pair. `level_key` is immutable after creation; it is the stable
-  identifier migrations and seeds refer to.
+  auto-promotion pair. The row id never changes; `level_key` is neither shown
+  nor editable.
 - `POST /rates/levels/<id>/archive` and `/restore` — archiving hides a level
   from every picker while leaving history and rate-card entries priced exactly
   as they were. This mirrors what rate cards already do at
@@ -207,6 +236,72 @@ Mutations are all POST (rule 4) and all activity-logged (rule 13):
 
 `rates.levels()` gains `include_archived=False`, so every existing caller keeps
 today's behaviour by default.
+
+## G. Rate card fiscal year and effective dates
+
+Sequenced after A–F and independently implementable — this is the money
+subsystem, not the contacts table, and the roster work should not wait behind
+it.
+
+Today `rate_cards` records no fiscal year and no dates. Dates live only on
+`rate_card_entries`, so a card's fiscal year is *implied* by its entry dates:
+`app/modules/rates/routes.py:43` groups entries by `effective_from` "so a fiscal
+year reads as one block", and `DATABASE_SCHEMA.md` already claims "one card per
+fiscal year" while nothing records which one.
+
+The `fiscal_year_start` app setting already exists, seeded `10-01`, so FY2026
+means 1 October 2025 to 30 September 2026 and no new configuration is needed.
+
+Migration `app/core/migrations/0028_rate_card_effective_dates.sql`:
+
+```sql
+ALTER TABLE rate_cards ADD COLUMN fiscal_year    INTEGER;
+ALTER TABLE rate_cards ADD COLUMN effective_from DATE;
+ALTER TABLE rate_cards ADD COLUMN effective_to   DATE;
+```
+
+All three additive and nullable. `fiscal_year` is backfilled for existing cards
+from the earliest entry date, which is display only and changes no arithmetic.
+**The date columns are deliberately left NULL on existing cards**, because a
+NULL bound means unbounded — so every card that prices something today prices it
+identically after the migration. Setting a range is then a deliberate act per
+card.
+
+`fiscal_year` is stored as an INTEGER so it sorts and `FY + 1` is arithmetic.
+Note this diverges from `performance_cycles.fiscal_year`, which a later phase
+defines as TEXT.
+
+### The card's dates decide
+
+Brian's decision. The risk in it is two competing date filters inside
+`resolve_rates()`, which is how a rate quietly resolves to the wrong fiscal
+year, so the semantics are defined as a single window rather than two tests:
+
+1. A card with a range applies only when the work date falls inside it. A NULL
+   bound is unbounded.
+2. Within an applicable card, the window for an entry is the **intersection** of
+   the entry's range and the card's — the later of the two starts, the earlier
+   of the two ends. One predicate, one selection path.
+
+```sql
+  AND max(e.effective_from, coalesce(c.effective_from, e.effective_from)) <= :work_date
+  AND :work_date <= min(coalesce(e.effective_to, '9999-12-31'),
+                        coalesce(c.effective_to, '9999-12-31'))
+```
+
+`_effective()` in `app/core/rates.py` gains a card-aware form; `resolve_rates()`
+remains the only place money is priced (rule 8).
+
+Consequently the entry editor pre-fills entry dates from the card's range and
+**refuses** an entry outside it. An entry outside its card's range can never
+price anything, and accepting one silently is how you get a rate card that looks
+complete and prices nothing.
+
+Fiscal year and dates derive from each other — fill either and the other is
+proposed. A contradictory pair is refused, naming both values.
+
+Docs: `FINANCIAL_MODEL.md` §2, `TEMPORAL_MODEL.md`, and `DATABASE_SCHEMA.md`
+(the `rate_cards` DDL and the Money mermaid diagram).
 
 ## Data model
 
@@ -240,6 +335,17 @@ the People section's mermaid ER diagram.
 | `health_check.py` | the checks below |
 | `docs/DATABASE_SCHEMA.md`, `docs/UI_DESIGN_SYSTEM.md`, `docs/BUILD_SEQUENCE.md` | documentation |
 
+Section G, separately:
+
+| File | Change |
+|---|---|
+| `app/core/migrations/0028_rate_card_effective_dates.sql` | new |
+| `app/core/rates.py` | card-aware `_effective()`, intersection window in `resolve_rates()` |
+| `app/modules/rates/routes.py` | fiscal year and date fields on card create/edit; entry dates validated against the card |
+| `app/modules/rates/models.py` | fiscal-year derivation from `fiscal_year_start` |
+| `app/templates/modules/rates/index.html`, `card.html` | fiscal year and effective range |
+| `docs/FINANCIAL_MODEL.md`, `docs/TEMPORAL_MODEL.md` | documentation |
+
 ## Verification
 
 There is no test suite; `health_check.py` is where regressions get caught, so it
@@ -255,6 +361,17 @@ gains:
 - Deleting a level that people reference is refused; archiving it succeeds.
 - An inline level change writes a `person_level_history` row, and a reason of
   `correction` leaves `last_promoted_on` untouched.
+- Two non-archived levels cannot share a label or a sort order.
+
+For section G:
+
+- **A card with no dates prices exactly what it priced before the migration.**
+  This is the regression that matters; everything else in G is new behaviour.
+- A work date outside a card's range does not price from that card.
+- An entry whose range is wider than its card's is clamped: a date inside the
+  entry but outside the card does not price.
+- Fiscal year derives from the dates and the dates from the fiscal year; a
+  contradictory pair is refused.
 
 Manual: the Key Principles checklist in `CLAUDE.md`, `python verify_docs.py`,
 and the phase checklist in `docs/BUILD_SEQUENCE.md`.
