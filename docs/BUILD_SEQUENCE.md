@@ -839,6 +839,32 @@ Not a phase: a fix to the contacts roster and the level ladder, on the
 - [x] Deleting a referenced level is refused naming what holds it; archiving
       hides it from the pickers while its priced rows stay priced
 
-Still open: section G of the spec — fiscal year and effective dates on rate
-cards — planned in `docs/superpowers/plans/2026-09-03-rate-card-fiscal-year.md`
-and not yet built.
+Section G of the spec — fiscal year and effective dates on rate cards — landed
+in the same session, from
+`docs/superpowers/plans/2026-09-03-rate-card-fiscal-year.md`:
+
+- `0028_rate_card_effective_dates.sql` adds `rate_cards.fiscal_year`,
+  `effective_from` and `effective_to`. Fill either the year or the dates and
+  the other is derived from `app_settings.fiscal_year_start`; a contradictory
+  pair is refused naming both.
+- **The card's range decides which of its entries apply**, expressed as one
+  window — the intersection of the entry's range with its card's — so
+  `resolve_rates()` never has two date filters that could disagree. A NULL
+  bound is unbounded, and the migration leaves the date columns NULL, so every
+  pre-existing card prices exactly what it always did.
+- An entry dated outside its card is refused: it could never price anything.
+- The Levels screen shows the bill and cost rate in force on a date, read
+  through that same window, linking to the card behind it.
+
+Two fixes went with it: `.pos-field` was stretching checkboxes to 180px and
+stranding their labels, and `ago()`/`datetime_long()` read UTC timestamps
+against a local clock, so anything just written showed as "in the future".
+
+**Acceptance**
+
+- [x] A card records its fiscal year and the dates it is in force
+- [x] Entering only the fiscal year derives the dates, and vice versa
+- [x] A date outside a card's range does not price from that card, even when
+      the entry covers it
+- [x] A card with no dates prices exactly what it did before the migration
+- [x] Each level shows what it bills and costs on a given date
