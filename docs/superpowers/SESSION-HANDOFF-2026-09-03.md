@@ -1,6 +1,6 @@
-# Session Handoff — 3 September 2026
+# Session Handoff — 3–4 September 2026
 
-Branch **`contacts-table-upgrade`**, 16 commits ahead of `main`. `main` is level
+Branch **`contacts-table-upgrade`**, 18 commits ahead of `main`. `main` is level
 with `origin/main`, so **none of this work is merged or pushed.**
 
 Read this first, then `docs/superpowers/specs/2026-09-03-contacts-table-upgrade-design.md`
@@ -44,7 +44,7 @@ root.
 
 ### Decisions outstanding
 
-1. **What happens to this branch.** 16 commits, unmerged, unpushed. Merge to
+1. **What happens to this branch.** 18 commits, unmerged, unpushed. Merge to
    `main`? Open a PR? Leave it running?
 2. **`verify_docs.py` cannot run on Windows.** Pre-existing, unrelated to this
    work: line ~137 falls back to `os.environ.get("TMPDIR", "/tmp")`, and `/tmp`
@@ -127,6 +127,38 @@ modified re-export produced 1 update and 1 insert, not 450 duplicates.
 - The Levels screen now shows the bill and cost rate in force on a date, read
   through that same window.
 
+### Rate cards became editable (4 September)
+
+Prompted by a plain question — "there is no edit or delete button, how do I
+correct this?" — which turned out to be four separate gaps.
+
+- **A card could be created but never edited.** No update route existed, so a
+  typo in the fiscal year could only be fixed by archiving the card and
+  starting again, stranding its rate history. Worse, this was a gap *widened*
+  by the fiscal-year work, which added the year and dates to creation only.
+  There is now a Card details form reusing the same derivation.
+- **A single rate can be removed** without rebuilding the card. Rows already
+  priced from it keep their snapshotted numbers.
+- **A card can be deleted only when it carries no rates.** A card with rates is
+  history: deleting it would leave budget lines pointing at a card that no
+  longer explains their numbers. Refused with a count, archive offered instead
+  — the same shape as the Levels screen.
+- **Rates can now be closed with an end date.**
+  `rate_card_entries.effective_to` had existed since the schema was written and
+  nothing ever set it, so every rate read "open" for ever and a superseded rate
+  went on pricing. Both dates are bounded by the card's own range in the
+  browser *and* checked on the server.
+
+**Every confirmation dialog in the app was dead.** They were inline
+`onsubmit="return confirm(...)"` handlers, which `script-src 'self'` refuses to
+compile — the browser reports "the action has been blocked" and the form
+submits with no prompt. Twelve of them across eight templates, covering archive
+and delete on projects, portfolios, contacts, charge codes, workstreams and
+rate cards. They are now `data-pos-confirm` with a delegated listener in
+`app.js`; the two `onchange="this.form.submit()"` selects use the existing
+`data-pos-submit-on-change`. Verified by clicking Archive, choosing Cancel, and
+confirming the card came back unarchived.
+
 ### Two fixes found while looking at screenshots
 
 - `.pos-field` applied `min-width: 180px` to every input, **including
@@ -153,6 +185,9 @@ modified re-export produced 1 update and 1 insert, not 450 duplicates.
 | Level operations live in `app/core/rates.py` | The rates module has no `models.py`; its level queries already lived in core, and other modules read levels through it. |
 | Schema doc convention | A table's main DDL block mirrors the migration that created it (see `entity_links` vs §0008); later changes get their own migration section plus a row in the ownership table. `verify_docs` enforces exactly this. |
 | Health checks that write run on a throwaway copy | `health_check.py` is run routinely against a live roster; a check that mutated it would be a defect. The copy is migrated to head and seeded, because a check over an empty table passes without proving anything. |
+| A card is deleted only when it carries no rates | A card with rates is history. Deleting it would leave budget lines and time entries pointing at a card that no longer explains their numbers. Archive covers every other case. |
+| Rates must sit inside their card's range | The card's dates decide what prices, so a rate outside them could never price anything. The intersection in `resolve_rates()` stays as the safety net for older data. |
+| Confirmations are `data-pos-confirm`, never `onsubmit` | The CSP is `script-src 'self'`, which refuses to compile inline handlers. **Any new inline `on*` attribute is silently dead.** |
 
 ---
 
@@ -182,10 +217,20 @@ misleading. This cost real time this session.
 
 **`verify_docs.py` needs `TMPDIR` set on Windows** — see decision 2 above.
 
+**Never write an inline `on*` handler.** The CSP is `script-src 'self'`, so
+`onclick`, `onsubmit` and `onchange` attributes are never compiled and fail
+*silently* — the form just submits. Use `data-pos-confirm="message"` (handled
+in `app.js`) or `data-pos-submit-on-change` (handled in `tables.js`). Twelve
+dead handlers had accumulated before anyone noticed.
+
 **Gates:** `python verify_docs.py` and `python health_check.py` must both exit
-0. Health check is at 115 checks; 4 warnings are optional packages absent from
+0. Health check is at 126 checks; 4 warnings are optional packages absent from
 the scratch venv (`win32com`, and the three AI-subsystem packages) and are
 expected.
+
+**A closed rate does not mean nothing prices.** Ending one rate falls through
+to the next applicable one on that card. A health check written on the opposite
+assumption failed against correct code — worth remembering before "fixing" it.
 
 ---
 
