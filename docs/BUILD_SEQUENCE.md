@@ -796,3 +796,49 @@ A module registers as **disabled** until its phase lands, so the sidebar only ev
 - [ ] Partial failure reports which action failed without rolling back the successes silently
 - [ ] Record a sequence and save it as a reusable Quick Step
 - [ ] Quick Steps are bindable to hotkeys and appear in the palette
+
+---
+
+# Out-of-phase — Contacts Table Upgrade (2026-09-03)
+
+Not a phase: a fix to the contacts roster and the level ladder, on the
+`contacts-table-upgrade` branch. Design in
+`docs/superpowers/specs/2026-09-03-contacts-table-upgrade-design.md`, plan in
+`docs/superpowers/plans/2026-09-03-contacts-table-upgrade.md`.
+
+- **Sorting moved from JavaScript to SQL.** `tables.js` reordered only the
+  rendered page while appearing to sort everything. Sort keys are now an
+  expression, a default direction and a fixed tie-breaker; tables marked
+  `data-pos-server-sort` are left alone by the client sorter.
+- **Filter and sort handles in the table header**, with per-column value menus
+  carrying counts that honour the other active filters.
+- **Rows per page** selectable — 25 to 1000, defaulting to 100, clamped
+  server-side. The pager now carries the whole view rather than four
+  hand-picked parameters.
+- **`GET /people/export.csv`** exports every filtered row rather than the page,
+  sharing the index's query parser so the two cannot drift, and carries the
+  whole directory record.
+- **Inline editing** across every scalar column. Name and email stay on the
+  edit form: email is the importer's deduplication key.
+- **Level edits open a popover** carrying an effective date and a reason,
+  because `record_level_change()` must not be bypassed and a promotion moves
+  the tenure clock where a correction must not (DESIGN_DECISIONS F7).
+- **`/rates/levels`** manages the ladder, with the four usage counts and
+  archive-rather-than-delete. `0027_person_levels_archive.sql` adds
+  `person_levels.archived_at`; `level_key` is retired in favour of the row id.
+
+**Acceptance**
+
+- [x] Sorting a column reorders the whole result set, not the visible page
+- [x] A column filter menu's counts honour the other active filters
+- [x] Rows per page clamps to the allowed set; the pager keeps the view
+- [x] Export returns every filtered row and more than one page's worth
+- [x] Every scalar column edits inline; email and name do not
+- [x] An inline level change writes history; a correction leaves
+      `last_promoted_on` untouched and a promotion moves it
+- [x] Deleting a referenced level is refused naming what holds it; archiving
+      hides it from the pickers while its priced rows stay priced
+
+Still open: section G of the spec — fiscal year and effective dates on rate
+cards — planned in `docs/superpowers/plans/2026-09-03-rate-card-fiscal-year.md`
+and not yet built.

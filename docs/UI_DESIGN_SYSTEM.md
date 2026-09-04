@@ -155,6 +155,32 @@ Staffing coverage uses a gradient from `--pos-accent` to `--pos-accent-2`, fille
 
 Data-dense by default. Sortable, filterable and exportable — every table view, no exceptions (P3 depends on it).
 
+**Paginated tables sort and filter on the server.** A client-side sort reorders
+only the rendered page while appearing to have sorted everything, which on a
+four-hundred-row roster is a lie the user cannot see. Mark such a table
+`data-pos-server-sort` and `tables.js` will leave its rows alone.
+
+The handles live in the header cell, as the contacts roster shows:
+
+- **Sort** — the `<th>` holds a link setting `?sort=<key>&dir=asc|desc` and
+  preserving every other parameter, with `aria-sort` on the active column.
+  Each sort key is an ordering expression, a default direction and a fixed
+  tie-breaker, so equal rows never swap places between pages.
+- **Filter** — columns with a fixed set of values carry a `<details>` menu of
+  those values with counts. A column's own filter is excluded from its own
+  counts, so choosing one value still shows what else you could switch to,
+  while every other menu narrows. Values come from a developer-defined dict of
+  permitted columns; the request never reaches the SQL text.
+- **Page size** — a selector of 25/50/100/250/500/1000, defaulting to 100 and
+  clamped server-side to that set.
+- **Export** — a link to a server route sharing the page's query parser, so the
+  file holds every filtered row rather than the rendered page, and the label
+  says which.
+
+All of it is links and form controls: the table works with JavaScript off, needs
+no inline script (the CSP forbids them), and every control is keyboard-reachable
+(P10).
+
 - Numerics right-aligned, tabular figures (`font-variant-numeric: tabular-nums`)
 - Negatives in parentheses, not with a minus sign — accounting convention (P9)
 - Thousands separators always; consistent decimal places within a column
