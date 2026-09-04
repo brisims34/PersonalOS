@@ -263,6 +263,34 @@ def main():
             with app.app_context():
                 set_enabled("search", True)
             check("re-enabling restores it", client.get("/search/").status_code == 200)
+
+            # The roster's list controls are a URL contract: anything a user
+            # can type has to come out of the parser as a legal value, because
+            # both the index and the CSV export are built from what it returns.
+            from app.modules.people import routes as people_routes
+
+            with app.test_request_context(
+                "/people/?per_page=999999&sort=nonsense&dir=sideways"
+            ):
+                parsed = people_routes._list_query()
+            check("per_page clamps to the allowed set",
+                  parsed["per_page"] == people_routes.DEFAULT_PER_PAGE,
+                  f"got {parsed['per_page']}")
+            check("an unknown sort falls back to name",
+                  parsed["sort"] == "name", f"got {parsed['sort']}")
+            check("an unknown direction falls back to the column default",
+                  parsed["direction"] == "asc", f"got {parsed['direction']}")
+
+            with app.test_request_context("/people/?per_page=1000&sort=level"):
+                parsed = people_routes._list_query()
+            check("an allowed per_page is honoured", parsed["per_page"] == 1000,
+                  f"got {parsed['per_page']}")
+            check("level defaults to descending — most senior first",
+                  parsed["direction"] == "desc", f"got {parsed['direction']}")
+
+            check("the roster sorts in both directions",
+                  client.get("/people/?sort=name&dir=asc").status_code == 200
+                  and client.get("/people/?sort=name&dir=desc").status_code == 200)
     except ImportError as exc:
         check("create_app() succeeds", False, f"{exc} — install requirements.txt")
     except Exception as exc:

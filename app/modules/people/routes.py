@@ -13,41 +13,104 @@ from . import importer, models
 bp = Blueprint("people", __name__, url_prefix="/people")
 guard_blueprint(bp, "people")
 
-PAGE_SIZE = 50
+DEFAULT_PER_PAGE = 100
+PER_PAGE_OPTIONS = (25, 50, 100, 250, 500, 1000)
 CRUMB = ("Contacts", "/people")
 
 PERSON_INLINE_FIELDS = {"status", "job_title", "department", "manager_person_id"}
 
 
+def _list_query():
+    """Parse the roster's URL controls once, for the index and the export.
+
+    Both views build from this, which is what stops an export of "what I am
+    looking at" from quietly meaning something else than the screen.
+    """
+    per_page = request.args.get("per_page", type=int)
+    if per_page not in PER_PAGE_OPTIONS:
+        per_page = DEFAULT_PER_PAGE
+
+    sort = request.args.get("sort", "name")
+    if sort not in models.SORTABLE:
+        sort = "name"
+
+    direction = request.args.get("dir")
+    if direction not in ("asc", "desc"):
+        direction = models.default_direction(sort)
+
+    return {
+        "filters": {
+            "search": (request.args.get("q") or "").strip() or None,
+            "level_id": request.args.get("level_id", type=int),
+            "company": request.args.get("company") or None,
+            "department": request.args.get("department") or None,
+            "function": request.args.get("function") or None,
+            "status": request.args.get("status") or None,
+            "import_source": request.args.get("source") or None,
+            "unmapped": request.args.get("unmapped") == "1",
+            "no_manager": request.args.get("no_manager") == "1",
+            "include_archived": request.args.get("archived") == "1",
+        },
+        "sort": sort,
+        "direction": direction,
+        "page": max(request.args.get("page", 1, type=int), 1),
+        "per_page": per_page,
+    }
+
+
+# URL key paired with the filter key it parses into, so a link can be rebuilt
+# without the two spellings drifting apart.
+_QUERY_KEYS = (
+    ("q", "search"), ("level_id", "level_id"), ("company", "company"),
+    ("department", "department"), ("function", "function"),
+    ("status", "status"), ("source", "import_source"),
+)
+
+_QUERY_FLAGS = (("unmapped", "unmapped"), ("no_manager", "no_manager"),
+                ("archived", "include_archived"))
+
+
+def _query_args(query, **overrides):
+    """The current view as url_for keyword arguments, minus empty values."""
+    args = {}
+    for url_key, filter_key in _QUERY_KEYS:
+        value = query["filters"].get(filter_key)
+        if value:
+            args[url_key] = value
+    for url_key, filter_key in _QUERY_FLAGS:
+        if query["filters"].get(filter_key):
+            args[url_key] = 1
+    args["sort"] = query["sort"]
+    args["dir"] = query["direction"]
+    args["per_page"] = query["per_page"]
+    args.update(overrides)
+    return args
+
+
 @bp.get("/")
 def index():
     as_of = request.args.get("as_of") or date.today().isoformat()
-    page = max(request.args.get("page", 1, type=int), 1)
-    sort = request.args.get("sort", "name")
-    filters = {
-        "search": (request.args.get("q") or "").strip() or None,
-        "level_id": request.args.get("level_id", type=int),
-        "company": request.args.get("company") or None,
-        "function": request.args.get("function") or None,
-        "import_source": request.args.get("source") or None,
-        "unmapped": request.args.get("unmapped") == "1",
-        "no_manager": request.args.get("no_manager") == "1",
-        "include_archived": request.args.get("archived") == "1",
-    }
+    query = _list_query()
+    filters = query["filters"]
+    per_page = query["per_page"]
 
     total = models.count_people(**filters)
     rows = models.list_people(
-        sort=sort, limit=PAGE_SIZE, offset=(page - 1) * PAGE_SIZE, **filters
+        sort=query["sort"], direction=query["direction"],
+        limit=per_page, offset=(query["page"] - 1) * per_page, **filters
     )
 
     return render_template(
         "modules/people/index.html",
         rows=rows,
         total=total,
-        page=page,
-        page_size=PAGE_SIZE,
-        page_count=max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1),
-        sort=sort,
+        page=query["page"],
+        page_size=per_page,
+        page_count=max((total + per_page - 1) // per_page, 1),
+        sort=query["sort"],
+        direction=query["direction"],
+        per_page_options=PER_PAGE_OPTIONS,
+        query_args=_query_args(query),
         filters=filters,
         options=models.filter_values(),
         summary=models.roster_summary(),

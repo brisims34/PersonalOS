@@ -10,15 +10,35 @@ from app.core.database import get_db
 
 MAX_CHAIN_DEPTH = 20  # cycle guard — real directory data does contain loops
 
+# sort key -> (leading expression, its default direction, tie-breaker).
+# Direction applies to the leading term only. The tie-breaker keeps its own
+# fixed direction, so two people who sort equally never swap places between
+# page 1 and page 2.
 SORTABLE = {
-    "name": "p.last_name, p.first_name",
-    "email": "p.email",
-    "title": "p.job_title",
-    "level": "l.sort_order DESC, p.last_name",
-    "company": "p.company, p.last_name",
-    "city": "p.city, p.last_name",
-    "manager": "m.last_name, p.last_name",
+    "name":       ("p.last_name",     "asc",  "p.first_name"),
+    "email":      ("p.email",         "asc",  "p.last_name"),
+    "title":      ("p.job_title",     "asc",  "p.last_name"),
+    "level":      ("l.sort_order",    "desc", "p.last_name"),
+    "department": ("p.department",    "asc",  "p.last_name"),
+    "company":    ("p.company",       "asc",  "p.last_name"),
+    "city":       ("p.city",          "asc",  "p.last_name"),
+    "state":      ("p.state_province", "asc", "p.last_name"),
+    "function":   ("p.function",      "asc",  "p.last_name"),
+    "status":     ("p.status",        "asc",  "p.last_name"),
+    "manager":    ("m.last_name",     "asc",  "p.last_name"),
 }
+
+_DIRECTIONS = {"asc": "ASC", "desc": "DESC"}
+
+
+def default_direction(sort):
+    return SORTABLE.get(sort, SORTABLE["name"])[1]
+
+
+def _order_by(sort, direction):
+    lead, fallback, tiebreak = SORTABLE.get(sort, SORTABLE["name"])
+    keyword = _DIRECTIONS.get(direction, _DIRECTIONS[fallback])
+    return f"{lead} {keyword}, {tiebreak}"
 
 _SELECT = """
 SELECT p.*,
@@ -34,6 +54,7 @@ SELECT p.*,
 
 
 def _filter_clause(search=None, level_id=None, company=None, function=None,
+                   department=None, status=None,
                    import_source=None, include_archived=False, unmapped=False,
                    no_manager=False):
     """Fixed clause text only; every value is bound (CLAUDE.md rule 2)."""
@@ -54,6 +75,12 @@ def _filter_clause(search=None, level_id=None, company=None, function=None,
     if function:
         clauses.append("p.function = ?")
         params.append(function)
+    if department:
+        clauses.append("p.department = ?")
+        params.append(department)
+    if status:
+        clauses.append("p.status = ?")
+        params.append(status)
     if import_source:
         clauses.append("p.import_source = ?")
         params.append(import_source)
@@ -65,11 +92,14 @@ def _filter_clause(search=None, level_id=None, company=None, function=None,
     return where, params
 
 
-def list_people(sort="name", limit=100, offset=0, **filters):
+def list_people(sort="name", direction=None, limit=100, offset=0, **filters):
     where, params = _filter_clause(**filters)
-    order = SORTABLE.get(sort, SORTABLE["name"])
-    sql = _SELECT + where + f" ORDER BY {order} LIMIT ? OFFSET ?"
-    return get_db().execute(sql, params + [limit, offset]).fetchall()
+    sql = _SELECT + where + f" ORDER BY {_order_by(sort, direction)}"
+    # limit=None is the CSV export: the whole filtered set, no pagination.
+    if limit is not None:
+        sql += " LIMIT ? OFFSET ?"
+        params = params + [limit, offset]
+    return get_db().execute(sql, params).fetchall()
 
 
 def count_people(**filters):
