@@ -547,6 +547,53 @@ def main():
                     check("deleting a level in use is refused", survived)
                     check("and the refusal names what still references it",
                           "cannot be deleted" in refusal.get_data(as_text=True))
+
+                # A level change is a money event, not a text edit: it has to
+                # write history, and a correction must not read as a promotion
+                # or it silently resets somebody's tenure clock.
+                with scratch.app_context():
+                    target = core_rates.levels()[0]["id"]
+                    was = people_models.get_person(subject)["last_promoted_on"]
+                    history_before = len(people_models.level_history(subject))
+
+                changed = ladder_client.post(
+                    f"/people/{subject}/level/inline",
+                    data={"level_id": target, "effective_from": "2026-01-01",
+                          "reason": "correction"},
+                    headers=origin)
+                check("an inline level change succeeds",
+                      changed.get_json().get("ok") is True, str(changed.get_json()))
+
+                with scratch.app_context():
+                    now = people_models.get_person(subject)
+                    history_after = len(people_models.level_history(subject))
+                check("it writes a level-history row",
+                      history_after > history_before,
+                      f"{history_before} → {history_after}")
+                check("a correction leaves last_promoted_on alone",
+                      now["last_promoted_on"] == was,
+                      f"{was} → {now['last_promoted_on']}")
+
+                promoted = ladder_client.post(
+                    f"/people/{subject}/level/inline",
+                    data={"level_id": target, "effective_from": "2026-02-01",
+                          "reason": "promotion"},
+                    headers=origin)
+                with scratch.app_context():
+                    after_promotion = people_models.get_person(subject)
+                check("a promotion does move the tenure clock",
+                      promoted.get_json().get("ok") is True
+                      and after_promotion["last_promoted_on"] == "2026-02-01",
+                      str(after_promotion["last_promoted_on"]))
+
+                nonsense = ladder_client.post(
+                    f"/people/{subject}/level/inline",
+                    data={"level_id": target, "effective_from": "2026-03-01",
+                          "reason": "whatever"},
+                    headers=origin)
+                check("an unknown reason is refused",
+                      nonsense.get_json().get("ok") is False,
+                      str(nonsense.get_json()))
         finally:
             cleanup()
     except Exception as exc:

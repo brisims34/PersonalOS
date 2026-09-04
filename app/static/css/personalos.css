@@ -941,3 +941,14 @@ details.pos-panel > summary { cursor: pointer; list-style: revert; }
   text-align: left;
   font-weight: 400;
 }
+
+/* The level editor is a small form, not a dropdown: a level change carries an
+   effective date and a reason, and the two are not interchangeable. */
+.pos-level-popover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  align-items: center;
+}
+.pos-level-popover select,
+.pos-level-popover input { font-size: .9em; }

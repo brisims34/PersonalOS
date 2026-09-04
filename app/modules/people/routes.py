@@ -111,8 +111,23 @@ def index():
     menus = {column: models.column_values(column, **filters)
              for column in models.FILTERABLE_COLUMNS}
 
+    # Archiving retires a level; it must not silently unset anybody already on
+    # one. So the picker offers the live ladder plus any archived level
+    # somebody on this page still holds, labelled for what it is.
+    live_levels = rates.levels()
+    known = {level["id"] for level in live_levels}
+    level_options = [{"id": level["id"], "label": level["label"]}
+                     for level in live_levels]
+    for row in rows:
+        if row["level_id"] and row["level_id"] not in known:
+            known.add(row["level_id"])
+            level_options.append({"id": row["level_id"],
+                                  "label": f"{row['level_label']} (archived)"})
+
     return render_template(
         "modules/people/index.html",
+        level_options=level_options,
+        today=date.today().isoformat(),
         menus=menus,
         rows=rows,
         total=total,
@@ -262,6 +277,42 @@ def update_field(person_id):
     else:
         display = updated[field] or ""
     return {"ok": True, "display": display}
+
+
+@bp.post("/<int:person_id>/level/inline")
+def change_level_inline(person_id):
+    """The grid's level editor. Same write as change_level, JSON out.
+
+    Level is the one grid field that cannot be a plain dropdown. Writing
+    people.level_id directly would skip record_level_change(), which closes
+    the open history row and maintains the tenure clocks — and a promotion
+    moves last_promoted_on where a correction deliberately must not
+    (DESIGN_DECISIONS F7). A dropdown would have to guess which was meant.
+    """
+    person = models.get_person(person_id)
+    if person is None:
+        abort(404)
+    if person["archived_at"] is not None:
+        return {"ok": False, "error": "This contact is archived — restore it first to edit."}
+
+    level_id = request.form.get("level_id", type=int)
+    effective_from = request.form.get("effective_from")
+    reason = request.form.get("reason", "correction")
+    if not level_id or not effective_from:
+        return {"ok": False, "error": "A level change needs a level and an effective date."}
+    if reason not in ("promotion", "correction"):
+        return {"ok": False, "error": "A level change is either a promotion or a correction."}
+    if models.get_level(level_id) is None:
+        return {"ok": False, "error": "That level no longer exists."}
+
+    models.record_level_change(person_id, level_id, effective_from, reason,
+                               request.form.get("note") or None)
+    updated = models.get_person(person_id)
+    activity.log("person", person_id, "updated",
+                 f"{person['full_name']} recorded as {updated['level_label']} "
+                 f"from {effective_from} ({reason})",
+                 {"reason": reason, "effective_from": effective_from})
+    return {"ok": True, "display": updated["level_label"] or ""}
 
 
 @bp.get("/new")

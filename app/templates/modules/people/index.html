@@ -189,7 +189,7 @@
 </div>
 
 <table class="pos-table" id="people-table" data-pos-table data-pos-server-sort
-       data-edit-base="/people/{id}/field">
+       data-today="{{ today }}" data-edit-base="/people/{id}/field">
   <caption class="pos-visually-hidden">Contacts</caption>
   <thead>
     <tr>
@@ -216,7 +216,10 @@
       </td>
       <td data-field="job_title" data-type="text" data-value="{{ row.job_title or '' }}"
           tabindex="0">{{ row.job_title or '—' }}</td>
-      <td>
+      <td data-field="level_id" data-type="level-popover"
+          data-level-endpoint="{{ url_for('people.change_level_inline', person_id=row.id) }}"
+          data-options-src="#level-options" data-value="{{ row.level_id or '' }}"
+          tabindex="0">
         {% if row.level_label %}{{ row.level_label }}
         {% else %}<span class="pos-badge pos-badge-danger">no level</span>{% endif %}
       </td>
@@ -261,4 +264,5 @@
 
 {% block scripts %}
 <script type="application/json" id="manager-options">{{ people_options | tojson }}</script>
+<script type="application/json" id="level-options">{{ level_options | tojson }}</script>
 {% endblock %}

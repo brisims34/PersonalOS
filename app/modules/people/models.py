@@ -280,6 +280,13 @@ def level_history(person_id):
     ).fetchall()
 
 
+def get_level(level_id):
+    """Archived included: an existing assignment is still a real level."""
+    return get_db().execute(
+        "SELECT * FROM person_levels WHERE id = ?", (level_id,)
+    ).fetchone()
+
+
 def record_level_change(person_id, level_id, effective_from, reason="promotion", note=None):
     """Write a history row and maintain the denormalised clocks on `people`.
 

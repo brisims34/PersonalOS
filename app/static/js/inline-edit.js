@@ -97,11 +97,115 @@
     note.textContent = message;
   }
 
+  /* Level is not a scalar edit. It carries an effective date and a reason,
+   * because a promotion moves the tenure clock and a correction deliberately
+   * must not (DESIGN_DECISIONS F7), so the cell opens a small form rather
+   * than a dropdown that would have to guess which was meant. */
+  function openLevelPopover(td) {
+    var tr = td.closest("tr");
+    if (!tr || tr.dataset.archived === "1") return;
+
+    td.dataset.editing = "1";
+    td.dataset.savedHtml = td.innerHTML;
+    clearError(td);
+
+    var form = document.createElement("form");
+    form.className = "pos-level-popover";
+
+    var level = document.createElement("select");
+    level.setAttribute("aria-label", "Level");
+    optionsFromSrc(td.dataset.optionsSrc).forEach(function (option) {
+      var opt = document.createElement("option");
+      opt.value = String(option.id);
+      opt.textContent = option.label;
+      if (String(option.id) === String(td.dataset.value)) opt.selected = true;
+      level.appendChild(opt);
+    });
+
+    var when = document.createElement("input");
+    when.type = "date";
+    when.setAttribute("aria-label", "Effective from");
+    /* Today comes from the server on the table's data-today, not the
+     * browser's clock: the effective date of a level change is a business
+     * fact, and a machine with a skewed clock must not write one. */
+    var table = td.closest("table");
+    when.value = (table && table.dataset.today) || "";
+
+    var reason = document.createElement("select");
+    reason.setAttribute("aria-label", "Reason");
+    [["correction", "Correction — fixes the record"],
+     ["promotion", "Promotion — resets the tenure clock"]].forEach(function (pair) {
+      var opt = document.createElement("option");
+      opt.value = pair[0];
+      opt.textContent = pair[1];
+      reason.appendChild(opt);
+    });
+
+    var save = document.createElement("button");
+    save.type = "submit";
+    save.className = "pos-btn pos-btn-small pos-btn-primary";
+    save.textContent = "Save";
+
+    [level, when, reason, save].forEach(function (el) { form.appendChild(el); });
+    td.textContent = "";
+    td.appendChild(form);
+    level.focus();
+
+    function cancel() {
+      td.dataset.editing = "0";
+      clearError(td);
+      td.innerHTML = td.dataset.savedHtml;
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var body = new URLSearchParams();
+      body.set("level_id", level.value);
+      body.set("effective_from", when.value);
+      body.set("reason", reason.value);
+      td.classList.add("pos-inline-busy");
+
+      fetch(td.dataset.levelEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          td.classList.remove("pos-inline-busy");
+          if (data && data.ok) {
+            td.dataset.editing = "0";
+            td.dataset.value = level.value;
+            td.textContent = data.display;
+            clearError(td);
+          } else {
+            showError(td, (data && data.error) || "Save failed.");
+          }
+        })
+        .catch(function () {
+          td.classList.remove("pos-inline-busy");
+          showError(td, "Could not reach the server.");
+        });
+    });
+
+    form.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancel();
+      }
+    });
+  }
+
   function enterEdit(td) {
     if (td.dataset.editing === "1") return;
     var tr = td.closest("tr");
     if (!tr || tr.dataset.archived === "1") return;
     if (!td.dataset.field) return;
+
+    if (td.dataset.type === "level-popover") {
+      openLevelPopover(td);
+      return;
+    }
 
     td.dataset.editing = "1";
     td.dataset.savedHtml = td.innerHTML;
