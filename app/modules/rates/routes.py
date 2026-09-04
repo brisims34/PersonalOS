@@ -202,6 +202,128 @@ def save_entries(card_id):
     return redirect(url_for("rates.card", card_id=card_id))
 
 
+@bp.post("/cards/<int:card_id>")
+def update_card(card_id):
+    """Correct a card in place.
+
+    Without this, a typo in the fiscal year could only be fixed by archiving
+    the card and building it again, which would strand its rate history.
+    """
+    record = rates.card(card_id)
+    if record is None:
+        abort(404)
+
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("A rate card needs a name.", "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    try:
+        fiscal_year, effective_from, effective_to = _card_period()
+    except ValueError as mismatch:
+        flash(str(mismatch), "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    company = (request.form.get("company") or "").strip() or None
+    is_default = 1 if request.form.get("is_default") == "1" else 0
+
+    db = get_db()
+    if is_default:
+        # Only one default per company, or the fallback lookup is ambiguous.
+        db.execute(
+            "UPDATE rate_cards SET is_default = 0 "
+            "WHERE is_default = 1 AND id != ? AND (company IS ? OR company = ?)",
+            (card_id, company, company),
+        )
+    try:
+        db.execute(
+            "UPDATE rate_cards SET name = ?, company = ?, scope = ?, "
+            "is_default = ?, note = ?, fiscal_year = ?, effective_from = ?, "
+            "effective_to = ?, updated_at = datetime('now') WHERE id = ?",
+            (name, company, request.form.get("scope", record["scope"]), is_default,
+             request.form.get("note") or None, fiscal_year, effective_from,
+             effective_to, card_id),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        flash(f"A card called “{name}” already exists for that company.", "error")
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    activity.log("rate_card", card_id, "updated", f"Updated rate card {name}")
+    flash(
+        f"“{name}” saved. Rates already resolved onto budget lines and time "
+        "entries keep the numbers they were priced at.",
+        "success",
+    )
+    return redirect(url_for("rates.card", card_id=card_id))
+
+
+@bp.post("/cards/<int:card_id>/entries/<int:entry_id>/delete")
+def delete_entry(card_id, entry_id):
+    """Remove one wrong rate without rebuilding the card.
+
+    Rows already priced from it keep their snapshotted numbers, so this
+    removes a rate going forward rather than rewriting what it once priced.
+    """
+    record = rates.card(card_id)
+    if record is None:
+        abort(404)
+
+    db = get_db()
+    entry = db.execute(
+        "SELECT e.*, l.label AS level_label FROM rate_card_entries e "
+        "JOIN person_levels l ON l.id = e.level_id "
+        "WHERE e.id = ? AND e.rate_card_id = ?",
+        (entry_id, card_id),
+    ).fetchone()
+    if entry is None:
+        abort(404)
+
+    db.execute("DELETE FROM rate_card_entries WHERE id = ?", (entry_id,))
+    db.commit()
+    activity.log("rate_card", card_id, "deleted",
+                 f"Removed the {entry['level_label']} rate effective "
+                 f"{entry['effective_from']} from {record['name']}")
+    flash(
+        f"{entry['level_label']} effective {entry['effective_from']} removed. "
+        "Anything already priced from it keeps the rate it was written with.",
+        "success",
+    )
+    return redirect(url_for("rates.card", card_id=card_id))
+
+
+@bp.post("/cards/<int:card_id>/delete")
+def delete_card(card_id):
+    """Delete only an empty card. Anything that has priced work is archived.
+
+    A card with entries is history: deleting it would leave budget lines and
+    time entries pointing at a card that no longer explains their numbers.
+    """
+    record = rates.card(card_id)
+    if record is None:
+        abort(404)
+
+    entries = rates.card_entries(card_id)
+    if entries:
+        flash(
+            f"“{record['name']}” cannot be deleted — it carries "
+            f"{len(entries)} rate{'s' if len(entries) != 1 else ''}. Archive it "
+            "instead: that takes it out of use and leaves everything it priced "
+            "exactly as it is.",
+            "error",
+        )
+        return redirect(url_for("rates.card", card_id=card_id))
+
+    db = get_db()
+    db.execute("DELETE FROM rate_cards WHERE id = ?", (card_id,))
+    db.commit()
+    activity.log("rate_card", card_id, "deleted",
+                 f"Deleted the empty rate card {record['name']}")
+    flash(f"“{record['name']}” deleted. It carried no rates.", "success")
+    return redirect(url_for("rates.index"))
+
+
 @bp.post("/cards/<int:card_id>/archive")
 def archive_card(card_id):
     record = rates.card(card_id)

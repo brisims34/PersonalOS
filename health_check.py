@@ -678,6 +678,68 @@ def main():
             check("and shows nothing outside the card's fiscal year",
                   out_of_year is None)
 
+            # A rate card has to be correctable. Without an edit route a typo
+            # in the fiscal year could only be fixed by archiving the card and
+            # starting again.
+            with scratch.test_client() as cards:
+                edited = cards.post(
+                    f"/rates/cards/{bounded}",
+                    data={"name": "Health Check FY27", "company": "HC",
+                          "scope": "standard", "fiscal_year": 2027},
+                    headers=origin, follow_redirects=True)
+                with scratch.app_context():
+                    after = core_rates.card(bounded)
+                check("a card's name and fiscal year can be corrected",
+                      after["name"] == "Health Check FY27"
+                      and after["fiscal_year"] == 2027,
+                      f"{after['name']}, FY{after['fiscal_year']}, "
+                      f"status {edited.status_code}")
+                check("correcting the year re-derives the dates it is in force",
+                      after["effective_from"] == "2026-10-01"
+                      and after["effective_to"] == "2027-09-30",
+                      f"{after['effective_from']} to {after['effective_to']}")
+
+                contradiction = cards.post(
+                    f"/rates/cards/{bounded}",
+                    data={"name": "Health Check FY27", "scope": "standard",
+                          "fiscal_year": 2030, "effective_from": "2026-10-01"},
+                    headers=origin, follow_redirects=True)
+                check("a year contradicting its dates is refused",
+                      "falls in FY2027" in contradiction.get_data(as_text=True))
+
+                # One wrong rate must be removable without rebuilding the card.
+                with scratch.app_context():
+                    before_count = len(core_rates.card_entries(bounded))
+                    doomed = core_rates.card_entries(bounded)[0]["id"]
+                cards.post(f"/rates/cards/{bounded}/entries/{doomed}/delete",
+                           headers=origin)
+                with scratch.app_context():
+                    after_count = len(core_rates.card_entries(bounded))
+                check("a single rate entry can be deleted",
+                      after_count == before_count - 1,
+                      f"{before_count} → {after_count}")
+
+                # Deleting a card that priced something would strand history,
+                # so it is refused while entries remain.
+                refused = cards.post(f"/rates/cards/{unbounded}/delete",
+                                     headers=origin, follow_redirects=True)
+                with scratch.app_context():
+                    still = core_rates.card(unbounded)
+                check("deleting a card with rates on it is refused",
+                      still is not None
+                      and "cannot be deleted" in refused.get_data(as_text=True))
+
+                with scratch.app_context():
+                    for entry in core_rates.card_entries(unbounded):
+                        get_db().execute(
+                            "DELETE FROM rate_card_entries WHERE id = ?",
+                            (entry["id"],))
+                    get_db().commit()
+                cards.post(f"/rates/cards/{unbounded}/delete", headers=origin)
+                with scratch.app_context():
+                    gone = core_rates.card(unbounded)
+                check("an empty card can be deleted", gone is None)
+
             # Stored timestamps are UTC; the clock they are read against is
             # local. Comparing the two directly made anything just written
             # read "in the future" west of Greenwich.

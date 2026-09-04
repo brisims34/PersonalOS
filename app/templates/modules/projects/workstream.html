@@ -30,7 +30,7 @@
 
 {% block more_actions %}
 <form method="post" action="{{ url_for('projects.archive_workstream', workstream_id=workstream.id) }}"
-      onsubmit="return confirm('{{ 'Restore' if workstream.archived_at else 'Archive' }} {{ workstream.name }}? The folder on disk is left exactly as it is.');">
+      data-pos-confirm="{{ 'Restore' if workstream.archived_at else 'Archive' }} {{ workstream.name }}? The folder on disk is left exactly as it is." >
   <button type="submit" class="pos-btn {% if not workstream.archived_at %}pos-btn-danger{% endif %}">
     {{ 'Restore' if workstream.archived_at else 'Archive' }}
   </button>

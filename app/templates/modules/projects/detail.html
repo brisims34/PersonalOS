@@ -40,7 +40,7 @@
 
 {% block more_actions %}
 <form method="post" action="{{ url_for('projects.archive', project_id=project.id) }}"
-      onsubmit="return confirm('{{ 'Restore' if project.archived_at else 'Archive' }} {{ project.name }}? The folder on disk is left exactly as it is.');">
+      data-pos-confirm="{{ 'Restore' if project.archived_at else 'Archive' }} {{ project.name }}? The folder on disk is left exactly as it is." >
   <button type="submit" class="pos-btn {% if not project.archived_at %}pos-btn-danger{% endif %}">
     {{ 'Restore' if project.archived_at else 'Archive' }}
   </button>
@@ -233,7 +233,7 @@
         <td>
           <form method="post"
                 action="{{ url_for('projects.remove_team_member', project_id=project.id, person_id=row.id) }}"
-                onsubmit="return confirm('Remove {{ row.full_name }}{% if row.link_label %} as {{ row.link_label }}{% endif %} from this project? Their other roles on this project, if any, are left alone.');">
+                data-pos-confirm="Remove {{ row.full_name }}{% if row.link_label %} as {{ row.link_label }}{% endif %} from this project? Their other roles on this project, if any, are left alone." >
             <input type="hidden" name="role" value="{{ row.link_label or '' }}">
             <button type="submit" class="pos-btn pos-btn-danger">Remove</button>
           </form>
@@ -293,7 +293,7 @@
           <td>
             <form method="post"
                   action="{{ url_for('projects.remove_location', project_id=project.id, location_id=row.id) }}"
-                  onsubmit="return confirm('Remove {{ row.name }} from {{ project.name }}? The location record itself is kept and can still be linked to other projects.');">
+                  data-pos-confirm="Remove {{ row.name }} from {{ project.name }}? The location record itself is kept and can still be linked to other projects." >
               <button type="submit" class="pos-btn pos-btn-danger">Remove</button>
             </form>
           </td>
@@ -397,7 +397,7 @@
             <form method="post"
                   action="{{ url_for('projects.deactivate_resource', project_id=project.id, resource_id=row.id) }}"
                   class="pos-mt-3"
-                  onsubmit="return confirm('Deactivate “{{ row.label }}”? It drops out of resource pickers and the verify check, but stays recorded and can be reactivated any time.');">
+                  data-pos-confirm="Deactivate “{{ row.label }}”? It drops out of resource pickers and the verify check, but stays recorded and can be reactivated any time." >
               <button type="submit" class="pos-btn pos-btn-danger">Deactivate</button>
             </form>
             {% else %}
@@ -491,7 +491,7 @@
               ~ ('It will show in the active dependency list again.' if row.archived_at
                  else 'It is hidden from the active list, not deleted.') %}
           <form method="post" action="{{ url_for('projects.archive_dependency', dependency_id=row.id) }}"
-                onsubmit="return confirm({{ confirm_msg | tojson }});">
+                data-pos-confirm="{{ confirm_msg }}">
             {% if deps_show_archived %}<input type="hidden" name="show_archived" value="1">{% endif %}
             <button type="submit" class="pos-btn {% if not row.archived_at %}pos-btn-danger{% endif %}">
               {{ 'Restore' if row.archived_at else 'Archive' }}

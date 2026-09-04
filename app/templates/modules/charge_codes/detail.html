@@ -32,7 +32,7 @@
 {% block more_actions %}
 {% if code.status != 'closed' %}
 <form method="post" action="{{ url_for('charge_codes.set_status', code_id=code.id) }}"
-      onsubmit="return confirm('Close {{ code.code }}? It disappears from booking pickers. Time already booked to it is untouched.');">
+      data-pos-confirm="Close {{ code.code }}? It disappears from booking pickers. Time already booked to it is untouched." >
   <input type="hidden" name="status" value="closed">
   <button type="submit" class="pos-btn pos-btn-danger">Close code</button>
 </form>

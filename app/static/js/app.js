@@ -280,8 +280,28 @@
     });
   }
 
+  /* Confirmation before a destructive submit.
+   *
+   * This lives here rather than in an onsubmit attribute because the
+   * Content-Security-Policy is script-src 'self', which refuses to compile
+   * inline event handlers — the browser reports "the action has been
+   * blocked" and the form submits with no prompt at all. Every archive and
+   * delete in the app was silently unconfirmed until this existed.
+   *
+   * Delegated from the document, so it covers forms rendered after load. */
+  function bindConfirmations() {
+    document.addEventListener("submit", function (event) {
+      var form = event.target.closest("form[data-pos-confirm]");
+      if (!form) return;
+      if (!window.confirm(form.dataset.posConfirm)) {
+        event.preventDefault();
+      }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     renderHotkeyTable();
     bindChrome();
+    bindConfirmations();
   });
 })();

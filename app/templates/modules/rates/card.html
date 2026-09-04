@@ -24,8 +24,15 @@
 {% endblock %}
 
 {% block more_actions %}
+<a class="pos-btn" href="#card-details">Edit card</a>
+{% if not entries %}
+<form method="post" action="{{ url_for('rates.delete_card', card_id=card.id) }}"
+      data-pos-confirm="Delete “{{ card.name }}”? It carries no rates, so nothing is priced from it.">
+  <button type="submit" class="pos-btn pos-btn-danger">Delete</button>
+</form>
+{% endif %}
 <form method="post" action="{{ url_for('rates.archive_card', card_id=card.id) }}"
-      onsubmit="return confirm('{{ 'Restore' if card.archived_at else 'Archive' }} this card? Rates already resolved onto rows are untouched.');">
+      data-pos-confirm="{{ 'Restore' if card.archived_at else 'Archive' }} this card? Rates already resolved onto rows are untouched." >
   <button type="submit" class="pos-btn {% if not card.archived_at %}pos-btn-danger{% endif %}">
     {{ 'Restore' if card.archived_at else 'Archive' }}
   </button>
@@ -42,7 +49,8 @@
         <tr><th scope="col">Level</th><th scope="col" class="pos-num">Bill rate</th>
             <th scope="col" class="pos-num">Cost rate</th>
             <th scope="col" class="pos-num">Margin at 100% ERP</th>
-            <th scope="col">Until</th></tr>
+            <th scope="col">Until</th>
+            <th scope="col"><span class="pos-visually-hidden">Actions</span></th></tr>
       </thead>
       <tbody>
         {% for row in rows | sort(attribute='sort_order', reverse=true) %}
@@ -56,6 +64,13 @@
             {% else %}—{% endif %}
           </td>
           <td>{{ row.effective_to | date_long if row.effective_to else 'open' }}</td>
+          <td>
+            <form method="post"
+                  action="{{ url_for('rates.delete_entry', card_id=card.id, entry_id=row.id) }}"
+                  data-pos-confirm="Remove the {{ row.level_label }} rate effective {{ effective_from }}? Anything already priced from it keeps the rate it was written with.">
+              <button type="submit" class="pos-btn pos-btn-small">Remove</button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -68,6 +83,58 @@
     {% include "partials/_empty_state.html" %}
   {% endwith %}
 {% endif %}
+
+<section class="pos-panel" id="card-details">
+  <h2 class="pos-panel-heading">Card details</h2>
+  <p class="pos-muted pos-small">
+    Correcting these never restates a booked number — budget lines and time
+    entries keep the rate they were priced at. Fill either the fiscal year or
+    the dates and the other is derived; a pair that disagrees is refused.
+  </p>
+  <form method="post" action="{{ url_for('rates.update_card', card_id=card.id) }}">
+    <div class="pos-filter-bar">
+      <div class="pos-field">
+        <label for="ec-name">Card name</label>
+        <input type="text" id="ec-name" name="name" value="{{ card.name }}" required>
+      </div>
+      <div class="pos-field">
+        <label for="ec-scope">Scope</label>
+        <select id="ec-scope" name="scope">
+          {% for option in ('standard', 'negotiated', 'internal', 'offshore') %}
+          <option value="{{ option }}" {% if card.scope == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="ec-company">Company</label>
+        <input type="text" id="ec-company" name="company" value="{{ card.company or '' }}"
+               placeholder="blank = any company">
+      </div>
+      <div class="pos-field">
+        <label for="ec-default">Default for that company</label>
+        <select id="ec-default" name="is_default">
+          <option value="0" {% if not card.is_default %}selected{% endif %}>No</option>
+          <option value="1" {% if card.is_default %}selected{% endif %}>Yes</option>
+        </select>
+      </div>
+      <div class="pos-field">
+        <label for="ec-fy">Fiscal year</label>
+        <input type="number" id="ec-fy" name="fiscal_year" value="{{ card.fiscal_year or '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="ec-from">In force from</label>
+        <input type="date" id="ec-from" name="effective_from" value="{{ card.effective_from or '' }}">
+      </div>
+      <div class="pos-field">
+        <label for="ec-to">In force to</label>
+        <input type="date" id="ec-to" name="effective_to" value="{{ card.effective_to or '' }}">
+      </div>
+      <div class="pos-field pos-field-actions">
+        <button type="submit" class="pos-btn pos-btn-primary" data-pos-save>Save card</button>
+      </div>
+    </div>
+  </form>
+</section>
 
 <section class="pos-panel" id="add-rates">
   <h2 class="pos-panel-heading">Add or amend a year</h2>

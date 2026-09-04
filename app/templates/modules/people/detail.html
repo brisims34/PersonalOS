@@ -42,7 +42,7 @@
 
 {% block more_actions %}
 <form method="post" action="{{ url_for('people.archive', person_id=person.id) }}"
-      onsubmit="return confirm('{{ 'Restore' if person.archived_at else 'Archive' }} {{ person.full_name }}? Nothing is deleted.');">
+      data-pos-confirm="{{ 'Restore' if person.archived_at else 'Archive' }} {{ person.full_name }}? Nothing is deleted." >
   <button type="submit" class="pos-btn {% if not person.archived_at %}pos-btn-danger{% endif %}">
     {{ 'Restore' if person.archived_at else 'Archive' }}
   </button>

@@ -22,7 +22,7 @@
 
 {% block more_actions %}
 <form method="post" action="{{ url_for('portfolios.archive', portfolio_id=portfolio.id) }}"
-      onsubmit="return confirm('{{ 'Restore' if portfolio.archived_at else 'Archive' }} {{ portfolio.name | replace("'", "\\'") }}? Its projects and folder are all kept — nothing is deleted.');">
+      data-pos-confirm="{{ 'Restore' if portfolio.archived_at else 'Archive' }} {{ portfolio.name }}? Its projects and folder are all kept — nothing is deleted." >
   <button type="submit" class="pos-btn {% if not portfolio.archived_at %}pos-btn-danger{% endif %}">
     {{ 'Restore' if portfolio.archived_at else 'Archive' }}
   </button>
