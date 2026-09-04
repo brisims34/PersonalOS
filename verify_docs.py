@@ -26,6 +26,7 @@ import os
 import re
 import sqlite3
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -134,7 +135,11 @@ def main():
             if s.upper().startswith(("CREATE TABLE", "CREATE INDEX", "CREATE VIRTUAL TABLE")):
                 stmts.append(s)
 
-    db_path = os.path.join(os.environ.get("TMPDIR", "/tmp"), "personalos_schema_check.db")
+    # gettempdir() rather than a literal /tmp: it honours TMPDIR, TEMP and TMP
+    # and falls back to a real directory on every platform. Hard-coding /tmp
+    # meant this gate could not run at all on the Windows machine the app is
+    # actually served from — it died here with 'unable to open database file'.
+    db_path = os.path.join(tempfile.gettempdir(), "personalos_schema_check.db")
     if os.path.exists(db_path):
         os.remove(db_path)
     conn = sqlite3.connect(db_path)
