@@ -418,6 +418,36 @@ def main():
                       len(narrowed_lines) - 1 == actives and actives < everyone,
                       f"{len(narrowed_lines) - 1} rows for {actives} active "
                       f"of {everyone}")
+
+                # Inline editing is allowlisted server-side; the grid's
+                # attributes are convenience, not the security boundary.
+                with scratch.app_context():
+                    subject = people_models.list_people(limit=1)[0]["id"]
+                origin = {"Origin": "http://localhost"}
+
+                for field, value in (("company", "Edited Co"),
+                                     ("city", "Ann Arbor"),
+                                     ("state_province", "MI"),
+                                     ("function", "Delivery"),
+                                     ("job_title", "Edited Title")):
+                    saved = roster.post(f"/people/{subject}/field",
+                                        data={"field": field, "value": value},
+                                        headers=origin)
+                    check(f"{field} edits inline",
+                          saved.get_json().get("ok") is True, str(saved.get_json()))
+
+                refused = roster.post(f"/people/{subject}/field",
+                                      data={"field": "notes", "value": "nope"},
+                                      headers=origin)
+                check("a field outside the allowlist is refused",
+                      refused.get_json().get("ok") is False, str(refused.get_json()))
+                email_refused = roster.post(f"/people/{subject}/field",
+                                            data={"field": "email",
+                                                  "value": "new@example.invalid"},
+                                            headers=origin)
+                check("email stays off the grid — it is the import's dedup key",
+                      email_refused.get_json().get("ok") is False,
+                      str(email_refused.get_json()))
         finally:
             cleanup()
     except Exception as exc:

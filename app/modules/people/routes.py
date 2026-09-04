@@ -19,7 +19,14 @@ DEFAULT_PER_PAGE = 100
 PER_PAGE_OPTIONS = (25, 50, 100, 250, 500, 1000)
 CRUMB = ("Contacts", "/people")
 
-PERSON_INLINE_FIELDS = {"status", "job_title", "department", "manager_person_id"}
+# Name and email are deliberately absent. Email is the key the contact
+# importer deduplicates on, so a typo corrected in a grid cell would quietly
+# make the next spreadsheet load insert that person again rather than update
+# them. Both stay on the edit form, where the consequence is visible.
+PERSON_INLINE_FIELDS = {
+    "status", "job_title", "department", "company", "city", "state_province",
+    "function", "manager_person_id",
+}
 
 
 def _list_query():

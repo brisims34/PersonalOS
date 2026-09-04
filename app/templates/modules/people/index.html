@@ -197,6 +197,7 @@
       {{ column_head('Job title', 'title') }}
       {{ column_head('Level', 'level', 'level_id', menus.level) }}
       {{ column_head('Department', 'department', 'department', menus.department) }}
+      {{ column_head('Function', 'function', 'function', menus.function) }}
       {{ column_head('Company', 'company', 'company', menus.company) }}
       {{ column_head('City', 'city') }}
       {{ column_head('State', 'state') }}
@@ -221,6 +222,8 @@
       </td>
       <td class="pos-small" data-field="department" data-type="text" data-value="{{ row.department or '' }}"
           tabindex="0">{{ row.department or '—' }}</td>
+      <td class="pos-small" data-field="function" data-type="text" data-value="{{ row.function or '' }}"
+          tabindex="0">{{ row.function or '—' }}</td>
       <td class="pos-small" data-field="company" data-type="text"
           data-value="{{ row.company or '' }}" tabindex="0">{{ row.company or '—' }}</td>
       <td class="pos-small" data-field="city" data-type="text"
