@@ -392,6 +392,32 @@ def main():
             check("the level menu keys on id, not label",
                   level_menu and all(isinstance(r["value"], int) for r in level_menu),
                   f"{len(level_menu)} level(s)")
+
+            # The bug this fixes: the old export walked the rendered DOM and
+            # so returned one page. Counts come from the count query rather
+            # than a fixed number, so these hold on any database.
+            with scratch.app_context():
+                everyone = people_models.count_people()
+                actives = people_models.count_people(status="active")
+
+            with scratch.test_client() as roster:
+                dump = roster.get("/people/export.csv?per_page=25")
+                lines = dump.data.decode("utf-8").strip().splitlines()
+                check("export.csv returns a CSV attachment",
+                      dump.headers.get("Content-Disposition", "").startswith("attachment"),
+                      dump.headers.get("Content-Disposition", "(none)"))
+                check("export ignores pagination and returns every row",
+                      len(lines) - 1 == everyone,
+                      f"{len(lines) - 1} rows for {everyone} contacts")
+                check("export carries columns the table does not show",
+                      "Mobile phone" in lines[0], lines[0][:60])
+
+                narrowed_dump = roster.get("/people/export.csv?status=active")
+                narrowed_lines = narrowed_dump.data.decode("utf-8").strip().splitlines()
+                check("export honours the screen's filters",
+                      len(narrowed_lines) - 1 == actives and actives < everyone,
+                      f"{len(narrowed_lines) - 1} rows for {actives} active "
+                      f"of {everyone}")
         finally:
             cleanup()
     except Exception as exc:

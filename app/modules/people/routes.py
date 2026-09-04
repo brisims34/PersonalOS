@@ -1,8 +1,10 @@
+import csv
+import io
 import sqlite3
 from datetime import date
 
-from flask import (Blueprint, abort, flash, redirect, render_template, request,
-                   url_for)
+from flask import (Blueprint, Response, abort, flash, redirect, render_template,
+                   request, url_for)
 
 from app.core import activity, config, links, paths, rates
 from app.core.module_registry import guard_blueprint
@@ -123,6 +125,64 @@ def index():
         people_options=[{"id": p["id"], "label": p["full_name"]}
                         for p in models.list_people(limit=1000)],
         crumbs=[CRUMB[0]],
+    )
+
+
+# (row key, column heading). The export carries the whole directory record
+# rather than the columns the table happens to show — an export you have to
+# re-run with different columns is not an export.
+EXPORT_COLUMNS = (
+    ("external_ref", "ID"), ("first_name", "First name"), ("last_name", "Last name"),
+    ("preferred_name", "Preferred name"), ("email", "Email"), ("company", "Company"),
+    ("department", "Department"), ("job_title", "Job title"),
+    ("level_label", "Level"), ("function", "Function"), ("status", "Status"),
+    ("business_phone", "Business phone"), ("mobile_phone", "Mobile phone"),
+    ("home_phone", "Home phone"), ("city", "City"), ("state_province", "State/Province"),
+    ("manager_name", "Manager"), ("manager_email", "Manager email"),
+)
+
+
+@bp.get("/export.csv")
+def export_csv():
+    """Every row the current filters select, not the page being looked at.
+
+    Reads the same _list_query() the index does, so the file cannot drift
+    from the screen, and passes limit=None so pagination does not apply.
+    """
+    query = _list_query()
+    rows = models.list_people(
+        sort=query["sort"], direction=query["direction"], limit=None,
+        **query["filters"]
+    )
+
+    def generate():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+
+        def flush():
+            value = buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+            return value
+
+        writer.writerow([heading for _, heading in EXPORT_COLUMNS])
+        yield flush()
+        for row in rows:
+            keys = row.keys()
+            writer.writerow([
+                row[key] if key in keys and row[key] is not None else ""
+                for key, _ in EXPORT_COLUMNS
+            ])
+            yield flush()
+
+    stamp = date.today().isoformat()
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="personalos-contacts-{stamp}.csv"'
+        },
     )
 
 

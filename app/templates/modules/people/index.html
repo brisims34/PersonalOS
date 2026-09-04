@@ -178,7 +178,14 @@
     <noscript><button type="submit" class="pos-btn">Apply</button></noscript>
   </form>
 
-  <button type="button" class="pos-btn" data-pos-export="people-table">Export CSV</button>
+  {# A link, not a scripted download: the file is built server-side from the
+     same query the page was, so it holds every filtered row and not the
+     hundred on screen. The label says which, so the file cannot surprise. #}
+  <a class="pos-btn" href="{{ url_for('people.export_csv', **query_args) }}">
+    Export CSV{% if filters.search or filters.level_id or filters.company
+                  or filters.department or filters.function or filters.status
+                  or filters.unmapped or filters.no_manager %} — {{ total | num }} filtered{% else %} — all {{ total | num }}{% endif %}
+  </a>
 </div>
 
 <table class="pos-table" id="people-table" data-pos-table data-pos-server-sort
