@@ -410,6 +410,26 @@ body.pos-rail .pos-sidebar-foot { display: none; }
   color: var(--pos-text); font: inherit; font-size: var(--pos-fs-dense);
   min-width: 180px;
 }
+/* A checkbox is not a text field. The rules above set min-width: 180px and
+   text padding, which stretches the box itself and strands its label at the
+   far end of the row. */
+.pos-field input[type="checkbox"],
+.pos-field input[type="radio"] {
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  margin: 0;
+  flex: none;
+}
+.pos-field label:has(input[type="checkbox"]),
+.pos-field label:has(input[type="radio"]) {
+  display: flex;
+  align-items: center;
+  gap: var(--pos-space-1);
+  font-weight: 400;
+  color: var(--pos-text);
+}
+
 .pos-field-actions { justify-content: flex-end; }
 
 /* --- 9. Tables ---------------------------------------------------------- */
