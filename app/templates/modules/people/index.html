@@ -161,10 +161,25 @@
 </form>
 
 {% if rows %}
-<p class="pos-result-count" aria-live="polite">
-  {{ total | num }} contact{{ 's' if total != 1 }}{% if page_count > 1 %} · page {{ page }} of {{ page_count }}{% endif %}
+<div class="pos-result-count" aria-live="polite">
+  <span>{{ total | num }} contact{{ 's' if total != 1 }}{% if page_count > 1 %}
+        · page {{ page }} of {{ page_count }}{% endif %}</span>
+
+  <form class="pos-inline-form" method="get" action="{{ url_for('people.index') }}">
+    {% for key, value in query_args.items() if key not in ('per_page', 'page') %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+    <label for="f-per-page">Rows per page</label>
+    <select id="f-per-page" name="per_page" data-pos-submit-on-change>
+      {% for option in per_page_options %}
+      <option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option | num }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="pos-btn">Apply</button></noscript>
+  </form>
+
   <button type="button" class="pos-btn" data-pos-export="people-table">Export CSV</button>
-</p>
+</div>
 
 <table class="pos-table" id="people-table" data-pos-table data-pos-server-sort
        data-edit-base="/people/{id}/field">
@@ -214,7 +229,7 @@
   </tbody>
 </table>
 
-{{ pager('people.index', page, page_count, {'q': filters.search or '', 'level_id': filters.level_id or '', 'company': filters.company or '', 'sort': sort}) }}
+{{ pager('people.index', page, page_count, query_args) }}
 
 {% else %}
   {% if filters.search or filters.level_id or filters.company or filters.function %}

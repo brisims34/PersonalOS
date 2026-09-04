@@ -346,6 +346,22 @@ def main():
                   client.get("/people/?sort=name&dir=asc").status_code == 200
                   and client.get("/people/?sort=name&dir=desc").status_code == 200)
 
+            # Paging must not drop the view. A next-page link that loses the
+            # filter is how you silently page into the unfiltered roster.
+            # Asserted against the parser, so it holds on any database.
+            with app.test_request_context(
+                "/people/?company=Acme&status=active&sort=level&dir=asc&per_page=25"
+            ):
+                args = people_routes._query_args(people_routes._list_query())
+            check("the page link keeps the filters",
+                  args.get("company") == "Acme" and args.get("status") == "active",
+                  str(args))
+            check("the page link keeps sort, direction and page size",
+                  args.get("sort") == "level" and args.get("dir") == "asc"
+                  and args.get("per_page") == 25, str(args))
+            check("empty filters are left out of the link",
+                  "q" not in args and "level_id" not in args, str(args))
+
     except ImportError as exc:
         check("create_app() succeeds", False, f"{exc} — install requirements.txt")
     except Exception as exc:
