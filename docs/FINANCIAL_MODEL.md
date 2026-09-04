@@ -174,6 +174,8 @@ Director and Partner split on **time in role**, not on title. Two people both ti
 
 **Flagged, never applied automatically** — a level change reprices every subsequent hour. But missing one is a quiet failure: the person keeps billing at the junior rate for months and nothing announces it. The prompt is the point.
 
+The rule is set per level on **Budgets & Rates → Levels**: a target level and a term in months. Both or neither — a target with no term never fires, and a term with no target has nothing to fire at, so half a rule is refused rather than stored. The seeded values (36 for Director, 60 for Partner) are a starting point, not a constant.
+
 > **Four mappings need confirmation before Phase 9** (see `DATABASE_SCHEMA.md` 0002): `Assistant Manager` and `Consultant` have no card row and were defaulted; `Contractor` has no rate at all and needs an override per person; and the two Specialist titles may or may not bill at their ladder level.
 
 ### Why company scopes the card

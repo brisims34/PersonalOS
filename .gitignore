@@ -30,6 +30,9 @@ template_library/*
 venv/
 .venv_verify/
 .worktrees/
+# Browser-automation scratch output: snapshots and screenshots from testing.
+.playwright-mcp/
+
 # Agent worktrees. Git records a worktree directory as a gitlink, so without
 # this ten of them were committed as submodule entries that nothing could clone.
 .claude/worktrees/

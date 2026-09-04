@@ -433,6 +433,37 @@ def _level_form():
     return label, sort_order, on_ladder
 
 
+def _promotion_rule(level_id):
+    """The auto-promotion pair, or the reason it is not a rule.
+
+    Returns (target, months, error). A target with no term never fires and a
+    term with no target has nothing to fire at, so half a rule is refused
+    rather than stored — it would sit in the table looking configured while
+    the transitions panel silently ignored it.
+    """
+    target = request.form.get("auto_promote_to_level_id", type=int)
+    months = request.form.get("auto_promote_after_months", type=int)
+
+    if target is None and months is None:
+        return None, None, None
+    if target is None:
+        return None, None, ("a term of months needs a level to promote to — "
+                            "pick one, or clear the months to drop the rule")
+    if months is None:
+        return None, None, (f"{_level_label(target)} needs a term — say how "
+                            "many months at this level come first")
+    if target == level_id:
+        return None, None, "a level cannot promote to itself"
+    if months < 1:
+        return None, None, "a term is a whole number of months, at least one"
+    return target, months, None
+
+
+def _level_label(level_id):
+    match = next((l for l in rates.list_levels() if l["id"] == level_id), None)
+    return match["label"] if match else "That level"
+
+
 @bp.post("/levels")
 def create_level():
     label, sort_order, on_ladder = _level_form()
@@ -467,10 +498,23 @@ def update_level(level_id):
         flash(f"Not saved — {clash}.", "error")
         return redirect(url_for("rates.levels_index"))
 
+    target, months, bad_rule = _promotion_rule(level_id)
+    if bad_rule:
+        flash(f"Not saved — {bad_rule}.", "error")
+        return redirect(url_for("rates.levels_index"))
+
     rates.update_level(level_id, {"label": label, "sort_order": sort_order,
-                                  "is_on_ladder": on_ladder})
+                                  "is_on_ladder": on_ladder,
+                                  "auto_promote_to_level_id": target,
+                                  "auto_promote_after_months": months})
     activity.log("rate_card", level_id, "updated", f"Updated the level {label}")
-    flash(f"{label} saved.", "success")
+    if target:
+        flash(f"{label} saved. Anyone who has been at this level for "
+              f"{months} months now shows on Tenure transitions due as ready "
+              f"for {_level_label(target)} — flagged, never applied.", "success")
+    else:
+        flash(f"{label} saved. It carries no auto-promotion rule, so nobody "
+              "at this level is ever flagged for a transition.", "success")
     return redirect(url_for("rates.levels_index"))
 
 

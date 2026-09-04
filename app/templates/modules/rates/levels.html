@@ -26,6 +26,7 @@
     <thead>
       <tr>
         <th scope="col">Level</th>
+        <th scope="col">Auto-promote</th>
         <th scope="col" class="pos-num">Bill rate</th>
         <th scope="col" class="pos-num">Cost rate</th>
         <th scope="col" class="pos-num">People</th>
@@ -43,7 +44,7 @@
                           or counts.title_maps or counts.history %}
       <tr {% if level.archived_at %}class="pos-row-archived"{% endif %}>
         <td>
-          <form class="pos-inline-form" method="post"
+          <form class="pos-inline-form" method="post" id="lv{{ level.id }}"
                 action="{{ url_for('rates.update_level', level_id=level.id) }}">
             <label class="pos-visually-hidden" for="label-{{ level.id }}">Level name</label>
             <input type="text" id="label-{{ level.id }}" name="label"
@@ -58,6 +59,34 @@
             </label>
             <button type="submit" class="pos-btn pos-btn-small">Save</button>
           </form>
+        </td>
+        {# Both controls post with the row's form above via form="lv…", so the
+           rule sits in its own column instead of crowding the name field. #}
+        <td class="pos-promote-rule">
+          <label class="pos-visually-hidden" for="promote-{{ level.id }}">
+            Auto-promote {{ level.label }} to
+          </label>
+          <select id="promote-{{ level.id }}" name="auto_promote_to_level_id"
+                  form="lv{{ level.id }}">
+            <option value="">no rule</option>
+            {% for option in levels if option.id != level.id
+                  and (not option.archived_at
+                       or option.id == level.auto_promote_to_level_id) %}
+            <option value="{{ option.id }}"
+                    {% if option.id == level.auto_promote_to_level_id %}selected{% endif %}>
+              {{ option.label }}{% if option.archived_at %} (archived){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <span class="pos-promote-term">
+            <label for="months-{{ level.id }}">after</label>
+            <input type="number" id="months-{{ level.id }}" min="1" step="1"
+                   name="auto_promote_after_months" form="lv{{ level.id }}"
+                   value="{{ level.auto_promote_after_months
+                             if level.auto_promote_after_months is not none }}"
+                   style="width: 4.5rem">
+            <span class="pos-muted pos-small">months</span>
+          </span>
         </td>
         {% set priced = rates_at[level.id] %}
         <td class="pos-num">

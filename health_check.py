@@ -548,6 +548,63 @@ def main():
                     check("and the refusal names what still references it",
                           "cannot be deleted" in refusal.get_data(as_text=True))
 
+                # Auto-promotion drives the "Tenure transitions due" panel.
+                # The columns and the rule have existed since 0002; until now
+                # nothing in the UI could set them, so the panel could only
+                # ever show what a migration had seeded.
+                with scratch.app_context():
+                    ladder = core_rates.levels()
+                # Two distinct live levels, named neutrally: levels() orders by
+                # sort_order and some rows arrive already carrying a rule that
+                # migration 0002 seeded.
+                rule_level, target_level = ladder[-1], ladder[0]
+
+                page = ladder_client.get("/rates/levels").get_data(as_text=True)
+                check("the levels screen offers an auto-promotion target",
+                      'name="auto_promote_to_level_id"' in page
+                      and 'name="auto_promote_after_months"' in page)
+
+                def save_rule(target, months, level=rule_level):
+                    return ladder_client.post(
+                        f"/rates/levels/{level['id']}",
+                        data={"label": level["label"],
+                              "sort_order": level["sort_order"],
+                              "is_on_ladder": "1",
+                              "auto_promote_to_level_id": target,
+                              "auto_promote_after_months": months},
+                        headers=origin, follow_redirects=True)
+
+                def rule_now(level=rule_level):
+                    with scratch.app_context():
+                        row = get_db().execute(
+                            "SELECT auto_promote_to_level_id AS target, "
+                            "       auto_promote_after_months AS months "
+                            "FROM person_levels WHERE id = ?",
+                            (level["id"],)).fetchone()
+                    return row["target"], row["months"]
+
+                save_rule(target_level["id"], 36)
+                check("an auto-promotion rule saves",
+                      rule_now() == (target_level["id"], 36), str(rule_now()))
+
+                # A target with no term, or a term with no target, is not a
+                # rule — it is a half-entered one that would silently never fire.
+                half = save_rule(target_level["id"], "")
+                check("a target with no term is refused",
+                      rule_now() == (target_level["id"], 36)
+                      and "how many months" in half.get_data(as_text=True),
+                      str(rule_now()))
+
+                loop = save_rule(rule_level["id"], 12)
+                check("a level cannot auto-promote to itself",
+                      rule_now() == (target_level["id"], 36)
+                      and "promote to itself" in loop.get_data(as_text=True),
+                      str(rule_now()))
+
+                save_rule("", "")
+                check("clearing both fields removes the rule",
+                      rule_now() == (None, None), str(rule_now()))
+
                 # A level change is a money event, not a text edit: it has to
                 # write history, and a correction must not read as a promotion
                 # or it silently resets somebody's tenure clock.
