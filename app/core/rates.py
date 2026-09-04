@@ -265,10 +265,23 @@ def card_entries(card_id):
     ).fetchall()
 
 
-def levels(on_ladder_only=False):
-    sql = "SELECT * FROM person_levels"
+def levels(on_ladder_only=False, include_archived=False):
+    """The ladder. Archived levels are excluded unless asked for.
+
+    An archived level is retired, not deleted: it disappears from pickers
+    while every rate-card entry and history row referencing it keeps
+    pricing. Callers that display an existing assignment need
+    include_archived, or somebody's level vanishes from its own picker.
+    """
+    clauses = []
     if on_ladder_only:
-        sql += " WHERE is_on_ladder = 1"
+        clauses.append("is_on_ladder = 1")
+    if not include_archived:
+        clauses.append("archived_at IS NULL")
+
+    sql = "SELECT * FROM person_levels"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY sort_order"
     return get_db().execute(sql).fetchall()
 

@@ -56,6 +56,7 @@ Migration number tracks build phase. Each table is created by exactly one migrat
 | `0024_ai.sql` | 20 | Providers, models, policy, jobs, runs, embeddings |
 | `0025_quicksteps.sql` | 23 | Quick steps, quick step runs |
 | `0026_tasks_nav_group.sql` | 4 | Seed-data fix — moves `tasks` from `nav_group='Command'` to `nav_group='Work'` in `module_registry` (no table changes) |
+| `0027_person_levels_archive.sql` | 2 | Adds `person_levels.archived_at` so a level can be retired without unpricing the history that references it |
 
 ---
 
@@ -82,6 +83,7 @@ flowchart TB
         JTM --> LVL
         PPL --> PLH
         PLH --> LVL
+        LVL -.->|archived_at| LVL
     end
 
     subgraph MONEY["Money"]
@@ -381,6 +383,9 @@ CREATE TABLE person_levels (
     created_at   DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 ```
+
+`archived_at` is added by §0027 — see that section. `level_key` is retired
+there too: the identifier is `id`, which every foreign key already points at.
 
 **Seed — the rate card ladder (sort ascending = junior to senior):**
 
@@ -3358,3 +3363,35 @@ CREATE TABLE quick_step_runs (
 # 0026 — Tasks Nav Group
 
 Seed-data fix, not a schema change — no new table, column, or constraint. `tasks` was seeded by `0001_init.sql` into `module_registry.nav_group = 'Command'`, which put it as a sidebar sibling of Command Center. The correct hierarchy is Command Center standalone, then Work containing Portfolios → Projects & Workstreams → Tasks. `0026_tasks_nav_group.sql` moves it: `nav_group = 'Work'`, `sort_order = 125` (after Portfolios at 110 and Projects & Workstreams at 120, before Portfolio Timeline at 130).
+
+---
+
+# 0027 — Person Levels Archive
+
+Retiring a level must never unprice history. `0027_person_levels_archive.sql`
+adds one nullable column so a level can be taken out of circulation without
+touching a single priced row:
+
+```sql
+ALTER TABLE person_levels ADD COLUMN archived_at DATETIME;
+```
+
+An archived level disappears from every picker — `rates.levels()` excludes
+archived rows unless asked for them with `include_archived=True` — while its
+`rate_card_entries` and `person_level_history` rows stay exactly as they were,
+so a card written last year still prices last year's hours. A person already
+sitting on an archived level keeps it, and still sees it in their own picker.
+Deletion stays available only for a level that nothing references at all, and
+the levels screen refuses it otherwise, naming what still points at it.
+
+**`level_key` is retired by the same change.** The immutable identifier is
+`id`, an `INTEGER PRIMARY KEY AUTOINCREMENT` that every foreign key —
+`people.level_id`, `rate_card_entries.level_id`, `job_title_map.level_id`,
+`person_level_history.level_id` — already points at. The ladder's meaning is
+carried by `label` and `sort_order`, which the levels screen enforces as
+unique among non-archived levels, because "the level above Manager" needs a
+defined answer. `level_key` is neither shown nor editable, and no query reads
+it for logic. The column itself stays because SQLite refuses to drop a UNIQUE
+column, and rebuilding a table that four foreign keys point into would be
+open-heart surgery on the ladder that prices everything, for no behaviour
+change. New rows fill it with a slug of the label plus the row id.

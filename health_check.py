@@ -73,6 +73,13 @@ def scratch_app():
     copy = Path(workspace) / "healthcheck.db"
     shutil.copy(core_paths.DB_PATH, copy)
 
+    # The copy is migrated to head, so these checks exercise the schema the
+    # code expects even when the live database has not been migrated yet.
+    # No backup: the copy is disposable and about to be deleted.
+    from app.core.database import apply_migrations
+
+    apply_migrations(copy, backup=False)
+
     app = create_app(run_migrations=False)
     app.config["DATABASE_PATH"] = str(copy)
 
@@ -448,6 +455,27 @@ def main():
                 check("email stays off the grid — it is the import's dedup key",
                       email_refused.get_json().get("ok") is False,
                       str(email_refused.get_json()))
+
+            # Retiring a level must not unprice history, so archiving hides it
+            # from the pickers while every row referencing it stays as it was.
+            with scratch.app_context():
+                from app.core import rates as core_rates
+                from app.core.database import get_db
+
+                visible_before = len(core_rates.levels())
+                retired = core_rates.levels()[-1]["id"]
+                get_db().execute(
+                    "UPDATE person_levels SET archived_at = datetime('now') WHERE id = ?",
+                    (retired,),
+                )
+                get_db().commit()
+                visible_after = len(core_rates.levels())
+                everything = len(core_rates.levels(include_archived=True))
+            check("levels() hides an archived level",
+                  visible_after == visible_before - 1,
+                  f"{visible_before} → {visible_after}")
+            check("include_archived still returns it",
+                  everything == visible_before, f"{everything} of {visible_before}")
         finally:
             cleanup()
     except Exception as exc:
