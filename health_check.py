@@ -677,6 +677,32 @@ def main():
                   str(dict(priced)) if priced else "none")
             check("and shows nothing outside the card's fiscal year",
                   out_of_year is None)
+
+            # Stored timestamps are UTC; the clock they are read against is
+            # local. Comparing the two directly made anything just written
+            # read "in the future" west of Greenwich.
+            from datetime import datetime as _dt
+
+            from app.core.formatting import ago, datetime_long
+
+            with scratch.app_context():
+                stamped = get_db().execute(
+                    "SELECT datetime('now') AS t").fetchone()["t"]
+            check("a timestamp written now reads as now, not the future",
+                  ago(stamped) in ("just now", "1 min ago"), f"{ago(stamped)!r}")
+
+            # The rendered time must land on the local clock, within the
+            # minute or two it takes to get here. On a UTC machine this passes
+            # trivially; anywhere else it fails outright if the conversion is
+            # missing, which is the case that was broken.
+            rendered = datetime_long(stamped)
+            shown = _dt.strptime(rendered.split(", ")[1], "%H:%M").time()
+            local = _dt.now()
+            drift = abs((shown.hour * 60 + shown.minute)
+                        - (local.hour * 60 + local.minute))
+            check("a stored timestamp displays on the local clock",
+                  min(drift, 1440 - drift) <= 2,
+                  f"showed {rendered}, local clock {local.strftime('%H:%M')}")
         finally:
             cleanup()
     except Exception as exc:

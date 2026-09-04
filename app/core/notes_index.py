@@ -10,7 +10,7 @@ differ. A vault of a few thousand notes rescans in well under a second when
 nothing has changed, which is what makes scan-on-page-load viable.
 """
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core import markdown as md
@@ -103,7 +103,13 @@ def scan_root(root, force=False):
         counts["seen"] += 1
 
         stat = path.stat()
-        mtime = datetime.fromtimestamp(stat.st_mtime).isoformat(sep=" ", timespec="seconds")
+        # UTC, like every other timestamp in the database. This one used to be
+        # local, which meant `ago` was handed two conventions and could only be
+        # right about one of them. Storing UTC keeps the display conversion in
+        # one place. The field is change-detection state, so the first scan
+        # after this change simply re-indexes every note once.
+        mtime = (datetime.fromtimestamp(stat.st_mtime, timezone.utc)
+                 .replace(tzinfo=None).isoformat(sep=" ", timespec="seconds"))
         existing = indexed.get(rel)
 
         if (not force and existing

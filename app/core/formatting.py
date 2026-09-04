@@ -4,7 +4,7 @@ Principle P9: thousands separators, parentheses for negatives, consistent
 decimals, unambiguous dates. All amounts are USD — a currency code is never
 rendered and there is no currency selector.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 EM_DASH = "—"  # what a null renders as; never a blank cell, never a zero
@@ -119,18 +119,38 @@ def date_short(value, blank=EM_DASH):
     return f"{parsed.day} {_MONTHS[parsed.month - 1]}"
 
 
+def _stored_to_local(parsed):
+    """Every stored timestamp is SQLite's `datetime('now')`, which is UTC and
+    naive. Reading one against a local clock is what made an entry written a
+    moment ago render as "in the future" anywhere west of Greenwich, and an
+    activity trail show times hours away from when things happened.
+
+    Timestamps are stored in UTC and displayed local; nothing writes local
+    time into the database.
+    """
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone().replace(tzinfo=None)
+
+
 def datetime_long(value, blank=EM_DASH):
     parsed = _to_datetime(value)
     if parsed is None:
         return blank
+    parsed = _stored_to_local(parsed)
     return f"{date_long(parsed.date())}, {parsed.strftime('%H:%M')}"
 
 
 def ago(value, now=None, blank=EM_DASH):
-    """Relative age. `now` is a parameter so this is testable and backdatable."""
+    """Relative age. `now` is a parameter so this is testable and backdatable.
+
+    `value` is a stored UTC timestamp and `now` is local, so the stored value
+    is converted before the two are subtracted — see `_stored_to_local`.
+    """
     parsed = _to_datetime(value)
     if parsed is None:
         return blank
+    parsed = _stored_to_local(parsed)
     now = now or datetime.now()
     seconds = (now - parsed).total_seconds()
     if seconds < 0:
