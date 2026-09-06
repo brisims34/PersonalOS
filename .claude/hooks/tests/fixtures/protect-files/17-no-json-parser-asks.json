@@ -1,0 +1,7 @@
+{
+  "name": "no JSON parser available -> ask, never silent allow",
+  "stdin": { "tool_name": "Write", "tool_input": { "file_path": ".env", "content": "x" } },
+  "env": { "PATH": "/usr/bin:/bin" },
+  "expect_exit": 2,
+  "expect_stdout_contains": ["\"permissionDecision\":\"ask\"", "No JSON parser"]
+}

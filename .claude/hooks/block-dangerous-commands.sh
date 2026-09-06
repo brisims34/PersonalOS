@@ -8,19 +8,30 @@
 
 set -uo pipefail
 
-emit_deny() {
-  # Emit a JSON deny decision and exit 2.
-  local reason="${1//\"/\\\"}"
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$reason"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/json.sh"
+
+# A hook that cannot load its parser lib must not fall through to exit 0.
+if [ -z "$(declare -F json_parser_ready)" ]; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"Hook helper lib/json.sh failed to load; command safety checks did not run."}}\n'
+  exit 2
+fi
+
+emit_decision() {
+  # $1 = decision (deny|ask) ; $2 = reason. Emits JSON and exits 2.
+  local decision="$1"
+  local reason="${2//\"/\\\"}"
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"}}\n' "$decision" "$reason"
   exit 2
 }
 
-if ! command -v jq >/dev/null 2>&1; then
-  emit_deny "jq is required for command protection hooks but is not installed."
+emit_deny() { emit_decision deny "$1"; }
+
+if ! json_parser_ready; then
+  emit_decision ask "No JSON parser (jq, node, or python) is available, so command safety checks could not run. Approve only if you trust this command."
 fi
 
 INPUT=$(cat)
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
+COMMAND=$(json_field "$INPUT" tool_input.command)
 [ -z "$COMMAND" ] && exit 0
 
 # ── Protected branch list ────────────────────────────────────────────────

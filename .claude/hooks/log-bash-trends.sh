@@ -1,27 +1,29 @@
 #!/bin/bash
 # .claude/hooks/log-bash-trends.sh
+# Appends one JSON line per Bash tool call for usage analytics.
 
-# Ensure the log directory exists
-LOG_DIR=".claude/logs"
-mkdir -p "$LOG_DIR"
+INPUT=$(cat)
+
+# Logging is best-effort: never block the command the user asked for.
+command -v jq >/dev/null 2>&1 || exit 0
+
+LOG_DIR="${CLAUDE_PROJECT_DIR:-$PWD}/.claude/logs"
+mkdir -p "$LOG_DIR" 2>/dev/null || exit 0
 LOG_FILE="$LOG_DIR/bash-usage-trends.jsonl"
 
-# CLAUDE_TOOL_CALL contains the full payload (e.g., "Bash(npm test)")
-# Extract just the raw command payload inside the parentheses
-RAW_COMMAND=$(echo "$CLAUDE_TOOL_CALL" | sed -E 's/^Bash\((.*)\)$/\1/')
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
+[ -n "$COMMAND" ] || exit 0
 
-# Capture system environment metadata
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-USER_ID=${USER:-"unknown"}
-CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "detached")
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)
+[ -n "$CURRENT_BRANCH" ] || CURRENT_BRANCH="detached"
 
-# Escape quotes and backslashes for safe JSON structural output
-SAFE_COMMAND=$(echo "$RAW_COMMAND" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+# jq -n builds the JSON so quotes/backslashes/newlines escape correctly.
+jq -n -c \
+  --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+  --arg user "${USER:-unknown}" \
+  --arg branch "$CURRENT_BRANCH" \
+  --arg command "$COMMAND" \
+  '{timestamp: $timestamp, user: $user, branch: $branch, command: $command}' \
+  >> "$LOG_FILE" 2>/dev/null
 
-# Format the payload as a single JSON line for analytics aggregation
-cat <<EOF >> "$LOG_FILE"
-{"timestamp": "$TIMESTAMP", "user": "$USER_ID", "branch": "$CURRENT_BRANCH", "command": "$SAFE_COMMAND"}
-EOF
-
-# Always exit 0 so Claude isn't blocked from executing the actual command
 exit 0

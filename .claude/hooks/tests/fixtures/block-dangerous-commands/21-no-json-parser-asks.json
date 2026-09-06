@@ -1,0 +1,7 @@
+{
+  "name": "no JSON parser available -> ask, never silent allow",
+  "stdin": { "tool_name": "Bash", "tool_input": { "command": "git push --force origin main" } },
+  "env": { "PATH": "/usr/bin:/bin" },
+  "expect_exit": 2,
+  "expect_stdout_contains": ["\"permissionDecision\":\"ask\"", "No JSON parser"]
+}

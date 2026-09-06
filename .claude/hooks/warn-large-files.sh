@@ -3,14 +3,17 @@
 # Used as a PreToolUse hook for Edit|Write operations.
 # Exit 2 = block the action. Exit 0 = allow.
 
-# Requires jq for JSON parsing. Fail closed if missing
-if ! command -v jq >/dev/null 2>&1; then
-  echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"jq is required for file protection hooks but is not installed.\"}}"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/json.sh"
+
+# Fail safe, not open: ask the human when no parser can run the checks.
+if ! json_parser_ready; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}
+' "No JSON parser (jq, node, or python) is available, so file protection checks could not run. Approve only if you trust this write."
   exit 2
 fi
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(json_field "$INPUT" tool_input.file_path)
 
 if [ -z "$FILE_PATH" ]; then
   exit 0

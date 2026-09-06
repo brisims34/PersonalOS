@@ -51,19 +51,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-files.sh\"",
             "timeout": 10,
             "statusMessage": "Checking file protections..."
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/warn-large-files.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/warn-large-files.sh\"",
             "timeout": 10,
             "statusMessage": "Checking for build artifacts..."
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/scan-secrets.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/scan-secrets.sh\"",
             "timeout": 10,
             "statusMessage": "Scanning for secrets..."
           }
@@ -74,13 +74,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-dangerous-commands.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/block-dangerous-commands.sh\"",
             "timeout": 10,
             "statusMessage": "Checking command safety..."
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/log-bash-trends.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/log-bash-trends.sh\"",
             "timeout": 10,
             "statusMessage": "Logging bash trends..."
           }
@@ -93,13 +93,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-save.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-save.sh\"",
             "timeout": 30,
             "statusMessage": "Formatting..."
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto-test.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/auto-test.sh\"",
             "timeout": 120,
             "statusMessage": "Running matching tests..."
           }
@@ -112,7 +112,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\"",
             "timeout": 10,
             "statusMessage": "Loading project context..."
           }
@@ -125,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh\"",
             "timeout": 10
           }
         ]

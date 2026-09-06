@@ -3,19 +3,24 @@
 # Used as a PreToolUse hook for Edit|Write operations.
 # Exit 2 = block. Exit 0 = allow.
 
-# Requires jq for JSON parsing. Allow if missing (don't block the user)
-if ! command -v jq >/dev/null 2>&1; then
-  exit 0
+source "$(dirname "${BASH_SOURCE[0]}")/lib/json.sh"
+
+# Fail safe, not open: a secret scanner that silently allows on a missing
+# dependency is worse than useless, so ask the human instead.
+if ! json_parser_ready; then
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}
+' "No JSON parser (jq, node, or python) is available, so the secret scan could not run. Approve only if you are sure this content has no credentials."
+  exit 2
 fi
 
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
+TOOL_NAME=$(json_field "$INPUT" tool_name)
 
 # Extract the content being written
 if [ "$TOOL_NAME" = "Write" ]; then
-  CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // empty')
+  CONTENT=$(json_field "$INPUT" tool_input.content)
 elif [ "$TOOL_NAME" = "Edit" ]; then
-  CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_string // empty')
+  CONTENT=$(json_field "$INPUT" tool_input.new_string)
 else
   exit 0
 fi

@@ -5,6 +5,8 @@
 
 set -uo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/json.sh"
+
 emit() {
   # $1 = decision (deny|ask) ; $2 = reason
   local decision="$1"
@@ -13,12 +15,12 @@ emit() {
   exit 2
 }
 
-if ! command -v jq >/dev/null 2>&1; then
-  emit deny "jq is required for file protection hooks but is not installed."
+if ! json_parser_ready; then
+  emit ask "No JSON parser (jq, node, or python) is available, so file protection checks could not run. Approve only if you trust this write."
 fi
 
 INPUT=$(cat)
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
+FILE_PATH=$(json_field "$INPUT" tool_input.file_path)
 [ -z "$FILE_PATH" ] && exit 0
 
 BASENAME=$(basename -- "$FILE_PATH")
